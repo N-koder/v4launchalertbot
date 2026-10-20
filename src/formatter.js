@@ -46,6 +46,24 @@ function buildTelegramAlert(launch, settings = {}) {
   if (launch.marketCapUsd !== null && launch.marketCapUsd !== undefined) {
     lines.push(`├ 💰 <b>Market Cap:</b> ${formatUsd(launch.marketCapUsd)}`);
   }
+  if (
+    (launch.volumeUsd !== null && launch.volumeUsd !== undefined) ||
+    (launch.volumeCoin !== null && launch.volumeCoin !== undefined)
+  ) {
+    const volParts = [];
+    if (launch.volumeUsd !== null && launch.volumeUsd !== undefined) {
+      volParts.push(formatUsd(launch.volumeUsd));
+    }
+    if (launch.volumeCoin !== null && launch.volumeCoin !== undefined && Number(launch.volumeCoin) > 0) {
+      volParts.push(`${Number(launch.volumeCoin).toFixed(3)} ${escapeHtml(launch.quoteSymbol || 'ETH')}`);
+    }
+    if (launch.trades) {
+      volParts.push(`${launch.trades} trades`);
+    }
+    lines.push(`├ 📊 <b>Volume:</b> ${volParts.join(' • ') || '$0.00'}`);
+  } else {
+    lines.push(`├ 📊 <b>Volume:</b> $0.00 (Fresh Launch)`);
+  }
   if (launch.poolQuoteEth !== null && launch.poolQuoteEth !== undefined) {
     lines.push(`├ 💧 <b>Pool Liquidity:</b> ${Number(launch.poolQuoteEth).toFixed(3)} ${escapeHtml(launch.quoteSymbol || 'ETH')}`);
   }
