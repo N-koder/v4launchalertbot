@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Launch Alert Bot — Live Telegram Interface & Control Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0b0f17;
+      color: #f1f5f9;
+    }
+    code, .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Telegram Dark Mode Chat Bubble Styling */
+    .tg-chat-bg {
+      background-color: #0e1621;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
+      background-size: 24px 24px;
+    }
+    .tg-bubble {
+      background-color: #182533;
+      border-radius: 14px 14px 14px 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    }
+    .tg-caption a {
+      color: #6ab2f2;
+      text-decoration: none;
+    }
+    .tg-caption a:hover {
+      text-decoration: underline;
+    }
+    .tg-caption code {
+      background: rgba(83, 139, 192, 0.16);
+      color: #8cc9ff;
+      padding: 2px 6px;
+      border-radius: 5px;
+      cursor: pointer;
+      user-select: all;
+      font-size: 0.82rem;
+      transition: background 0.15s;
+    }
+    .tg-caption code:hover {
+      background: rgba(83, 139, 192, 0.32);
+    }
+    .tg-btn {
+      background-color: rgba(43, 82, 120, 0.45);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      color: #f5f5f5;
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 8px 6px;
+      text-align: center;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .tg-btn:hover {
+      background-color: rgba(58, 108, 156, 0.65);
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Top Navbar -->
+  <header class="border-b border-slate-800/80 bg-slate-950/70 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 via-emerald-500 to-blue-500 flex items-center justify-center font-bold text-lg shadow-lg">
+          🚀
+        </div>
+        <div>
+          <h1 class="font-bold text-base sm:text-lg tracking-tight flex items-center gap-2">
+            Multi-Launchpad Telegram Alert Bot
+            <span id="botStatusBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium">
+              Checking...
+            </span>
+          </h1>
+          <p class="text-xs text-slate-400">
+            Live Scanner: <span class="text-purple-400 font-medium">Programmable.market</span> •
+            <span class="text-emerald-400 font-medium">Stockereum.com</span> •
+            <span class="text-blue-400 font-medium">Sender.family</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <button onclick="pollNow()" id="pollBtn" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+          <span>🔄</span> Scan Now
+        </button>
+        <button onclick="openSettingsModal()" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow transition flex items-center gap-1.5">
+          <span>⚙️</span> Bot & Referral Settings
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <main class="max-w-7xl mx-auto w-full px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+    
+    <!-- Left Column: Live Detected Launches Across the 3 Launchpads (7 cols) -->
+    <section class="lg:col-span-7 flex flex-col gap-4">
+      <!-- Stats Row -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5">
+          <div class="text-xs text-slate-400">Tracked Launches</div>
+          <div id="statTracked" class="text-xl font-bold mt-1 text-white">0</div>
+        </div>
+        <div class="bg-slate-900/90 border border-purple-500/20 rounded-xl p-3.5">
+          <div class="text-xs text-purple-300">🟣 Programmable</div>
+          <div id="statProg" class="text-xl font-bold mt-1 text-purple-400">0</div>
+        </div>
+        <div class="bg-slate-900/90 border border-emerald-500/20 rounded-xl p-3.5">
+          <div class="text-xs text-emerald-300">🟢 Stockereum</div>
+          <div id="statStock" class="text-xl font-bold mt-1 text-emerald-400">0</div>
+        </div>
+        <div class="bg-slate-900/90 border border-blue-500/20 rounded-xl p-3.5">
+          <div class="text-xs text-blue-300">🔵 Sender.family</div>
+          <div id="statSender" class="text-xl font-bold mt-1 text-blue-400">0</div>
+        </div>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="flex items-center justify-between flex-wrap gap-2 bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <button onclick="setFilter('all')" id="tab-all" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white">
+            All Platforms
+          </button>
+          <button onclick="setFilter('programmable')" id="tab-programmable" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800">
+            🟣 Programmable
+          </button>
+          <button onclick="setFilter('stockereum')" id="tab-stockereum" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800">
+            🟢 Stockereum
+          </button>
+          <button onclick="setFilter('sender')" id="tab-sender" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800">
+            🔵 Sender.family
+          </button>
+          <button onclick="setFilter('users')" id="tab-users" class="px-3 py-1.5 rounded-lg text-xs font-medium text-amber-300 hover:bg-slate-800 border border-amber-500/30">
+            👑 Bot Users (<span id="userCountBadge">0</span>)
+          </button>
+        </div>
+        <span id="lastScanText" class="text-[11px] text-slate-400 pr-2">Scanning...</span>
+      </div>
+
+      <!-- Token Feed List -->
+      <div id="launchesList" class="space-y-2.5 overflow-y-auto max-h-[680px] pr-1">
+        <div class="text-center py-12 text-slate-500 text-sm">Loading live launches from Programmable, Stockereum, and Sender...</div>
+      </div>
+    </section>
+
+    <!-- Right Column: Exact Live Telegram Alert Simulator & Interactive Buttons (5 cols) -->
+    <section class="lg:col-span-5 flex flex-col">
+      <div class="sticky top-20 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+        <!-- Telegram Channel Header Bar -->
+        <div class="bg-[#17212b] px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center font-bold text-sm">
+              📢
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-white flex items-center gap-1.5">
+                <span id="previewChannelTitle">Launch Alerts Channel</span>
+                <span class="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded">LIVE PREVIEW</span>
+              </div>
+              <div class="text-[11px] text-slate-400">Click any token on the left to inspect its Telegram alert</div>
+            </div>
+          </div>
+          <button onclick="sendSelectedToTelegram()" id="sendTgBtn" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition shadow">
+            ✈️ Push to Channel
+          </button>
+        </div>
+
+        <!-- Telegram Chat Body -->
+        <div class="tg-chat-bg p-4 flex-1 min-h-[540px] flex flex-col justify-center">
+          <div id="tgPreviewContainer" class="max-w-md mx-auto w-full">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Copy Toast Notification -->
+        <div id="toastBar" class="hidden bg-emerald-600 text-white text-xs font-medium text-center py-2 px-4">
+          ✅ Copied Contract Address to clipboard!
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h2 class="text-base font-bold text-white">⚙️ Telegram Channel & Trading Bot Referrals</h2>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Telegram Channel Username or Chat ID</label>
+          <input id="inputChannelId" type="text" placeholder="@your_channel_name or -100123456789" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white focus:border-indigo-500 outline-none mono" />
+          <p class="text-[11px] text-slate-500 mt-1">Make sure your bot is added as an Administrator in the channel.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">⚡ Maestro Ref Code</label>
+            <input id="inputMaestroRef" type="text" placeholder="Optional ref" class="w-full px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white outline-none mono" />
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">🍌 BananaGun Ref</label>
+            <input id="inputBananaRef" type="text" placeholder="Optional ref" class="w-full px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white outline-none mono" />
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">∑ Sigma Bot Ref</label>
+            <input id="inputSigmaRef" type="text" placeholder="Optional ref" class="w-full px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white outline-none mono" />
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-800 space-y-2">
+          <div class="font-medium text-slate-300">Active Launchpads to Monitor:</div>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input id="chkProg" type="checkbox" class="rounded bg-slate-950 border-slate-700 text-indigo-600" />
+            <span>🟣 Programmable.market (Ethereum Mainnet)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input id="chkProgRh" type="checkbox" class="rounded bg-slate-950 border-slate-700 text-indigo-600" />
+            <span>🟣 Programmable.market (Robinhood Chain v4)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input id="chkStock" type="checkbox" class="rounded bg-slate-950 border-slate-700 text-indigo-600" />
+            <span>🟢 Stockereum.com (RWA Stock & Crypto Launches)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input id="chkSender" type="checkbox" class="rounded bg-slate-950 border-slate-700 text-indigo-600" />
+            <span>🔵 Sender.family (Uniswap v4 Locked Launches)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+        <button onclick="closeSettingsModal()" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium">Cancel</button>
+        <button onclick="saveSettings()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allLaunches = [];
+    let allSubscribers = [];
+    let selectedLaunch = null;
+    let currentFilter = 'all';
+    let currentSettings = {};
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        allLaunches = data.recentLaunches || [];
+        allSubscribers = data.subscribers || [];
+        currentSettings = data.settings || {};
+        document.getElementById('userCountBadge').textContent = allSubscribers.length;
+
+        // Update top badge
+        const badge = document.getElementById('botStatusBadge');
+        if (data.botConnected) {
+          badge.className = 'text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium';
+          badge.textContent = `● Live (@${data.botUsername})`;
+        } else {
+          badge.className = 'text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium';
+          badge.textContent = '● Preview Mode (Set TELEGRAM_BOT_TOKEN in .env)';
+        }
+
+        if (currentSettings.channelId) {
+          document.getElementById('previewChannelTitle').textContent = currentSettings.channelId;
+        }
+
+        // Count by platform in feed
+        const progCount = allLaunches.filter(x => x.platformKey.startsWith('programmable')).length;
+        const stockCount = allLaunches.filter(x => x.platformKey === 'stockereum').length;
+        const senderCount = allLaunches.filter(x => x.platformKey === 'sender').length;
+
+        document.getElementById('statTracked').textContent = data.trackedTotal || allLaunches.length;
+        document.getElementById('statProg').textContent = progCount;
+        document.getElementById('statStock').textContent = stockCount;
+        document.getElementById('statSender').textContent = senderCount;
+
+        if (data.stats?.lastPollAt) {
+          const secsAgo = Math.max(0, Math.round((Date.now() - data.stats.lastPollAt) / 1000));
+          document.getElementById('lastScanText').textContent = `Last scan: ${secsAgo}s ago`;
+        }
+
+        if (!selectedLaunch && allLaunches.length > 0) {
+          selectedLaunch = allLaunches[0];
+        } else if (selectedLaunch) {
+          const updated = allLaunches.find(x => x.address.toLowerCase() === selectedLaunch.address.toLowerCase());
+          if (updated) selectedLaunch = updated;
+        }
+
+        renderLaunches();
+        renderTelegramPreview();
+      } catch (err) {
+        console.error('Failed to fetch status:', err);
+      }
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      ['all', 'programmable', 'stockereum', 'sender', 'users'].forEach(f => {
+        const btn = document.getElementById(`tab-${f}`);
+        if (!btn) return;
+        if (f === filter) {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white';
+        } else if (f === 'users') {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-amber-300 hover:bg-slate-800 border border-amber-500/30';
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800';
+        }
+      });
+      renderLaunches();
+    }
+
+    function renderLaunches() {
+      const container = document.getElementById('launchesList');
+      if (currentFilter === 'users') {
+        if (allSubscribers.length === 0) {
+          container.innerHTML = `<div class="text-center py-10 text-slate-400 text-xs">No personal bot users yet. Once anyone sends <code>/start</code> to your bot in Telegram, their @username, Chat ID, active platform filters, and alert count will appear here!</div>`;
+          return;
+        }
+        container.innerHTML = allSubscribers.map((u, i) => {
+          const p = u.platforms || { programmable: true, stockereum: true, sender: true };
+          const lastTime = u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleString() : new Date(u.subscribedAt).toLocaleString();
+          return `
+            <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-slate-400">#${i + 1}</span>
+                  <span class="font-bold text-sm text-white">${u.firstName || 'User'} ${u.lastName || ''}</span>
+                  <span class="text-xs font-mono text-sky-400">${u.username ? '@' + u.username : '(no username)'}</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${u.active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}">
+                    ${u.active ? '🟢 Active' : '🔕 Paused'}
+                  </span>
+                </div>
+                <div class="text-xs text-slate-400 mt-1.5 flex flex-wrap items-center gap-2">
+                  <span class="mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">ID: ${u.chatId}</span>
+                  <span>•</span>
+                  <span>Watching:
+                    ${p.programmable !== false ? '<b class="text-purple-400">🟣Prog</b> ' : ''}
+                    ${p.stockereum !== false ? '<b class="text-emerald-400">🟢Stock</b> ' : ''}
+                    ${p.sender !== false ? '<b class="text-blue-400">🔵Sender</b>' : ''}
+                  </span>
+                </div>
+              </div>
+              <div class="text-right text-xs text-slate-400">
+                <div>📊 <b>${u.interactionsCount || 1}</b> actions • 📩 <b>${u.alertsReceived || 0}</b> alerts</div>
+                <div class="text-[11px] text-slate-500 mt-1">Last: <code class="text-amber-300">${u.lastAction || '/start'}</code> (${lastTime})</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+        return;
+      }
+      const filtered = allLaunches.filter(item => {
+        if (currentFilter === 'all') return true;
+        if (currentFilter === 'programmable') return item.platformKey.startsWith('programmable');
+        return item.platformKey === currentFilter;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="text-center py-10 text-slate-500 text-xs">No launches found for this filter yet.</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map((item) => {
+        const isSelected = selectedLaunch && selectedLaunch.address.toLowerCase() === item.address.toLowerCase();
+        const badgeColor =
+          item.platformKey.startsWith('programmable')
+            ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+            : item.platformKey === 'stockereum'
+            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+            : 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+
+        const timeStr = item.launchedAtMs ? new Date(item.launchedAtMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+
+        return `
+          <div onclick="selectLaunch('${item.address}', '${item.platformKey}')"
+               class="p-3.5 rounded-xl border transition cursor-pointer flex items-center justify-between gap-3 ${
+                 isSelected
+                   ? 'bg-slate-800/95 border-indigo-500 shadow-lg shadow-indigo-500/10'
+                   : 'bg-slate-900/70 border-slate-800/90 hover:bg-slate-800/60 hover:border-slate-700'
+               }">
+            <div class="flex items-center gap-3 min-w-0">
+              <img src="${item.image || 'https://sender.family/icon.png'}"
+                   onerror="this.src='https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2/logo.png'"
+                   class="w-11 h-11 rounded-xl object-cover bg-slate-800 border border-slate-700 shrink-0" />
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-bold text-sm text-white truncate">${item.name}</span>
+                  <span class="text-xs font-mono text-amber-400 font-semibold">$${item.symbol}</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full border font-medium ${badgeColor}">
+                    ${item.platformBadge}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                  <span class="mono text-[11px] text-slate-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800"
+                        onclick="event.stopPropagation(); copyCA('${item.address}')"
+                        title="Click to Copy CA">
+                    📋 ${item.address.slice(0, 8)}...${item.address.slice(-6)}
+                  </span>
+                  <span>•</span>
+                  <span class="truncate">${item.category || ''}</span>
+                </div>
+              </div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-[11px] text-slate-400">${timeStr}</div>
+              <button onclick="event.stopPropagation(); copyCA('${item.address}')"
+                      class="mt-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-sky-300 font-medium border border-slate-700">
+                Copy CA
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectLaunch(address, platformKey) {
+      const found = allLaunches.find(
+        x => x.address.toLowerCase() === address.toLowerCase() && x.platformKey === platformKey
+      );
+      if (found) {
+        selectedLaunch = found;
+        renderLaunches();
+        renderTelegramPreview();
+      }
+    }
+
+    function renderTelegramPreview() {
+      const container = document.getElementById('tgPreviewContainer');
+      if (!selectedLaunch || !selectedLaunch.telegramPreview) {
+        container.innerHTML = `<div class="text-center text-slate-500 text-xs">Select a token launch to preview its Telegram alert</div>`;
+        return;
+      }
+
+      const { caption, replyMarkup } = selectedLaunch.telegramPreview;
+      const htmlCaption = caption.replace(/\n/g, '<br/>');
+
+      const buttonsHtml = replyMarkup.inline_keyboard.map(row => {
+        const cols = row.length;
+        return `
+          <div class="grid grid-cols-${cols} gap-1.5">
+            ${row.map(btn => `
+              <a href="${btn.url}" target="_blank" rel="noopener noreferrer" class="tg-btn">
+                <span>${btn.text}</span>
+                <span class="text-[9px] opacity-60">↗</span>
+              </a>
+            `).join('')}
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="tg-bubble overflow-hidden">
+          ${selectedLaunch.image ? `
+            <div class="relative h-44 bg-slate-950 overflow-hidden border-b border-slate-800/60">
+              <img src="${selectedLaunch.image}"
+                   onerror="this.parentElement.style.display='none'"
+                   class="w-full h-full object-cover" />
+            </div>
+          ` : ''}
+          <div class="p-3.5 text-[13px] leading-relaxed text-slate-100 tg-caption" id="tgCaptionBox">
+            ${htmlCaption}
+            <div class="text-right text-[10px] text-slate-400 mt-1">Just now ✓✓</div>
+          </div>
+        </div>
+        <div class="mt-1.5 space-y-1.5">
+          ${buttonsHtml}
+        </div>
+      `;
+
+      // Make any <code> inside the Telegram preview copy on 1-tap just like real Telegram!
+      const codeEls = container.querySelectorAll('code');
+      codeEls.forEach(el => {
+        el.addEventListener('click', () => copyCA(el.textContent));
+      });
+    }
+
+    function copyCA(text) {
+      navigator.clipboard.writeText(text);
+      const toast = document.getElementById('toastBar');
+      toast.textContent = `✅ Copied Contract Address: ${text}`;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2500);
+    }
+
+    async function pollNow() {
+      const btn = document.getElementById('pollBtn');
+      btn.textContent = '⏳ Scanning...';
+      await fetch('/api/poll-now', { method: 'POST' });
+      await loadStatus();
+      btn.innerHTML = '<span>🔄</span> Scan Now';
+    }
+
+    async function sendSelectedToTelegram() {
+      if (!selectedLaunch) return;
+      const btn = document.getElementById('sendTgBtn');
+      const oldText = btn.textContent;
+      btn.textContent = 'Sending...';
+      try {
+        const res = await fetch('/api/send-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address: selectedLaunch.address,
+            platformKey: selectedLaunch.platformKey,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          alert(`✅ ${data.message}`);
+        } else {
+          alert(`⚠️ ${data.error}`);
+        }
+      } catch (e) {
+        alert('Error sending test alert: ' + e.message);
+      } finally {
+        btn.textContent = oldText;
+      }
+    }
+
+    function openSettingsModal() {
+      document.getElementById('inputChannelId').value = currentSettings.channelId || '';
+      document.getElementById('inputMaestroRef').value = currentSettings.maestroRef || '';
+      document.getElementById('inputBananaRef').value = currentSettings.bananaRef || '';
+      document.getElementById('inputSigmaRef').value = currentSettings.sigmaRef || '';
+      document.getElementById('chkProg').checked = currentSettings.enableProgrammable !== false;
+      document.getElementById('chkProgRh').checked = currentSettings.enableProgrammableRobinhood !== false;
+      document.getElementById('chkStock').checked = currentSettings.enableStockereum !== false;
+      document.getElementById('chkSender').checked = currentSettings.enableSender !== false;
+
+      const modal = document.getElementById('settingsModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    async function saveSettings() {
+      const payload = {
+        channelId: document.getElementById('inputChannelId').value.trim(),
+        maestroRef: document.getElementById('inputMaestroRef').value.trim(),
+        bananaRef: document.getElementById('inputBananaRef').value.trim(),
+        sigmaRef: document.getElementById('inputSigmaRef').value.trim(),
+        enableProgrammable: document.getElementById('chkProg').checked,
+        enableProgrammableRobinhood: document.getElementById('chkProgRh').checked,
+        enableStockereum: document.getElementById('chkStock').checked,
+        enableSender: document.getElementById('chkSender').checked,
+      };
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      closeSettingsModal();
+      await loadStatus();
+    }
+
+    loadStatus();
+    setInterval(loadStatus, 10000);
+  </script>
+</body>
+</html>

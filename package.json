@@ -1,0 +1,16 @@
+{
+  "name": "launch-alert-bot",
+  "version": "1.0.0",
+  "description": "Real-time Telegram Launch Alert Bot & Web Dashboard for Programmable.market, Stockereum.com, and Sender.family",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test-fetch": "node src/test-fetch.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-telegram-bot-api": "^0.66.0"
+  }
+}

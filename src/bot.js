@@ -1,0 +1,561 @@
+const TelegramBot = require('node-telegram-bot-api');
+const store = require('./store');
+const { buildTelegramAlert } = require('./formatter');
+
+function escapeHtml(str = '') {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+class AlertBot {
+  constructor() {
+    this.bot = null;
+    this.isConnected = false;
+    this.botUsername = null;
+  }
+
+  async init() {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token || token === 'your_bot_token_here' || token.trim() === '') {
+      console.log(
+        '[TelegramBot] ⚠️ No TELEGRAM_BOT_TOKEN set in .env yet. Running in Dashboard/Preview mode until configured.'
+      );
+      return;
+    }
+
+    try {
+      this.bot = new TelegramBot(token.trim(), { polling: true });
+      const me = await this.bot.getMe();
+      this.isConnected = true;
+      this.botUsername = me.username;
+      console.log(`[TelegramBot] ✅ Connected as @${me.username}`);
+      await this.setupCommandMenus();
+      this.registerCommands();
+    } catch (err) {
+      console.error('[TelegramBot] ❌ Failed to connect with TELEGRAM_BOT_TOKEN:', err.message);
+      this.bot = null;
+      this.isConnected = false;
+    }
+  }
+
+  /**
+   * Strict Admin Check:
+   * Only returns true if ADMIN_USER_ID is configured in .env AND matches the sender's Telegram User ID.
+   */
+  isAdmin(msgOrUser) {
+    const adminId = process.env.ADMIN_USER_ID;
+    if (!adminId || adminId.trim() === '') return false;
+    const userId = msgOrUser?.from ? msgOrUser.from.id : msgOrUser?.id;
+    return String(userId) === String(adminId.trim());
+  }
+
+  /**
+   * Registers Telegram's native `/` Command Menu:
+   * - Normal users ONLY see User Commands (/start, /help, /settings, /latest, /stop)
+   * - The Admin (ADMIN_USER_ID) sees BOTH User Commands AND Admin Commands in their `/` menu!
+   */
+  async setupCommandMenus() {
+    if (!this.bot) return;
+
+    const userCommands = [
+      { command: 'start', description: '🚀 Activate personal launch alerts' },
+      { command: 'help', description: '📖 Show help & available commands' },
+      { command: 'settings', description: '⚙️ Filter launchpads (Programmable, Stockereum, Sender)' },
+      { command: 'latest', description: '🔥 View the newest detected token launch' },
+      { command: 'stop', description: '🔕 Pause personal launch alerts' },
+    ];
+
+    try {
+      // Set default menu for all normal users
+      await this.bot.setMyCommands(userCommands, { scope: { type: 'default' } });
+
+      // If ADMIN_USER_ID is set, give ONLY that admin chat the extra Admin commands in their menu
+      const adminId = process.env.ADMIN_USER_ID;
+      if (adminId && adminId.trim() !== '') {
+        const adminCommands = [
+          ...userCommands,
+          { command: 'admin', description: '👑 [Admin] Open Admin Control Panel' },
+          { command: 'users', description: '👥 [Admin] See WHO & HOW users use your bot' },
+          { command: 'status', description: '📡 [Admin] Scanner health & stats' },
+          { command: 'test', description: '🧪 [Admin] Broadcast test alert' },
+        ];
+        await this.bot.setMyCommands(adminCommands, {
+          scope: { type: 'chat', chat_id: Number(adminId.trim()) },
+        });
+      }
+    } catch (err) {
+      console.warn('[TelegramBot] Could not set command menu:', err.message);
+    }
+  }
+
+  buildSubscriptionKeyboard(sub, isUserAdmin = false) {
+    const isSub = sub?.active !== false;
+    const pOn = sub?.platforms?.programmable !== false;
+    const sOn = sub?.platforms?.stockereum !== false;
+    const fOn = sub?.platforms?.sender !== false;
+
+    const rows = [
+      [
+        {
+          text: isSub ? '🔔 Personal Alerts: ACTIVE (Tap to Pause)' : '🔕 Personal Alerts: PAUSED (Tap to Resume)',
+          callback_data: 'toggle_active',
+        },
+      ],
+      [
+        { text: `🟣 Programmable: ${pOn ? '✅ ON' : '❌ OFF'}`, callback_data: 'toggle_prog' },
+        { text: `🟢 Stockereum: ${sOn ? '✅ ON' : '❌ OFF'}`, callback_data: 'toggle_stock' },
+      ],
+      [
+        { text: `🔵 Sender.family: ${fOn ? '✅ ON' : '❌ OFF'}`, callback_data: 'toggle_sender' },
+        { text: '🔥 Latest Launch', callback_data: 'preview_latest' },
+      ],
+      [{ text: '📖 Help & Commands', callback_data: 'show_help' }],
+    ];
+
+    // Only show Admin Panel button if this user is the Admin!
+    if (isUserAdmin) {
+      rows.push([
+        { text: '👑 Admin: View Users (/users)', callback_data: 'admin_users' },
+        { text: '📡 Admin: Bot Status', callback_data: 'admin_status' },
+      ]);
+    }
+
+    return { inline_keyboard: rows };
+  }
+
+  buildHelpText(isUserAdmin = false) {
+    const userSection = [
+      `📖 <b>Launch Alert Bot — Help & Commands</b>`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `This bot monitors <b>3 Ethereum / Uniswap v4 Launchpads</b> in real-time and sends you instant alerts with a <b>1-tap copiable Contract Address (CA)</b> and <b>1-click trading buttons</b> (Maestro, Sigma Bot, DexScreener).`,
+      ``,
+      `🏛 <b>Supported Launchpads:</b>`,
+      `• 🟣 <b>Programmable.market</b> (ETH & Robinhood Chain)`,
+      `• 🟢 <b>Stockereum.com</b> (RWA Stock, Meme & Crypto Pairs)`,
+      `• 🔵 <b>Sender.family</b> (Uniswap v4 Locked Liquidity)`,
+      ``,
+      `👤 <b>User Commands:</b>`,
+      `• /start — Activate your personal DM launch alerts`,
+      `• /help — Show this help guide`,
+      `• /settings — Choose which launchpads send you alerts (ON/OFF)`,
+      `• /latest — Instantly view the newest token launch`,
+      `• /stop — Pause personal DM alerts anytime`,
+      ``,
+      `💡 <b>Pro Tip:</b> Tap the Contract Address (<code>0x...</code>) inside any alert to copy it in 1 click, or tap <b>⚡ Maestro</b> / <b>∑ Sigma Bot</b> to open the sniper bot with the CA already loaded!`,
+    ];
+
+    // Admin commands are strictly hidden from normal users and ONLY appended if isUserAdmin === true
+    if (isUserAdmin) {
+      userSection.push(
+        ``,
+        `👑 <b>Admin-Only Commands (Visible only to you):</b>`,
+        `━━━━━━━━━━━━━━━━━━━━━━`,
+        `• /admin — Open Admin Control Panel`,
+        `• /users — See <b>WHO & HOW</b> people are using your bot (<code>@username</code>, Name, ID, active filters, actions & alerts received)`,
+        `• /status — Live scanner latency, database count & channel status`,
+        `• /test — Broadcast a test alert to channel & subscribers`,
+        `• /setchannel <code>@channel_or_none</code> — Set or clear public channel`,
+        `• /setref <code>maestro|banana|sigma CODE</code> — Set your referral code to earn trading fees`,
+        `• /myid — View your Telegram User ID`
+      );
+    }
+
+    return userSection.join('\n');
+  }
+
+  registerCommands() {
+    if (!this.bot) return;
+
+    // /myid — Lets the owner find their numeric Telegram ID to set ADMIN_USER_ID in .env
+    this.bot.onText(/^\/myid/, async (msg) => {
+      const uid = msg.from?.id;
+      const uname = msg.from?.username ? `@${msg.from.username}` : 'No username';
+      const isUserAdmin = this.isAdmin(msg);
+      await this.bot.sendMessage(
+        msg.chat.id,
+        `🆔 <b>Your Telegram ID:</b> <code>${uid}</code>\n👤 <b>Username:</b> ${escapeHtml(uname)}\n🔑 <b>Admin Status:</b> ${
+          isUserAdmin ? '👑 Recognized as Admin' : '👤 Normal User (Add ADMIN_USER_ID=' + uid + ' in .env to become Admin)'
+        }`,
+        { parse_mode: 'HTML' }
+      );
+    });
+
+    // /start — Subscribes user and shows User Menu (plus Admin section ONLY if they are Admin)
+    this.bot.onText(/^\/start/, async (msg) => {
+      const chatId = msg.chat.id;
+      const isUserAdmin = this.isAdmin(msg);
+
+      const sub = store.upsertSubscriber(chatId, {
+        username: msg.from?.username || '',
+        firstName: msg.from?.first_name || 'Trader',
+        lastName: msg.from?.last_name || '',
+        lastAction: '/start (Subscribed)',
+        active: true,
+      });
+
+      const welcomeLines = [
+        `🚀 <b>Welcome to Multi-Launchpad Alert Bot!</b>`,
+        ``,
+        `✅ <b>Your Personal DM Alerts are now ACTIVE!</b>`,
+        `Whenever a new token launches on <b>Programmable</b>, <b>Stockereum</b>, or <b>Sender.family</b>, you will receive an instant alert right here with a <b>1-tap copiable CA</b> and <b>1-click Maestro / Sigma / DexScreener buttons</b>.`,
+        ``,
+        `👤 <b>Quick Commands:</b>`,
+        `• /help — How to use & command list`,
+        `• /settings — Toggle launchpads ON/OFF`,
+        `• /latest — View newest token launch`,
+        `• /stop — Pause personal alerts`,
+      ];
+
+      if (isUserAdmin) {
+        welcomeLines.push(
+          ``,
+          `👑 <b>Admin Panel Unlocked (Only visible to you):</b>`,
+          `• /users — See <b>who & how</b> people use your bot (@username, filters, alerts)`,
+          `• /status — Scanner speed & stats`,
+          `• /admin — Full Admin command list`
+        );
+      }
+
+      welcomeLines.push(``, `👇 <b>Customize your launchpad alerts below:</b>`);
+
+      await this.bot.sendMessage(chatId, welcomeLines.join('\n'), {
+        parse_mode: 'HTML',
+        reply_markup: this.buildSubscriptionKeyboard(sub, isUserAdmin),
+      });
+    });
+
+    // /help — Shows user commands to normal users, and includes admin commands ONLY for the admin
+    this.bot.onText(/^\/help/, async (msg) => {
+      const chatId = msg.chat.id;
+      const isUserAdmin = this.isAdmin(msg);
+      const sub = store.recordUserAction(chatId, msg.from, '/help');
+
+      await this.bot.sendMessage(chatId, this.buildHelpText(isUserAdmin), {
+        parse_mode: 'HTML',
+        reply_markup: this.buildSubscriptionKeyboard(sub, isUserAdmin),
+      });
+    });
+
+    // /admin — Strictly for Admin only! Normal users get no access.
+    this.bot.onText(/^\/admin/, async (msg) => {
+      if (!this.isAdmin(msg)) return; // Silently ignore or block non-admins
+      const chatId = msg.chat.id;
+      const sub = store.recordUserAction(chatId, msg.from, '/admin');
+      await this.bot.sendMessage(chatId, this.buildHelpText(true), {
+        parse_mode: 'HTML',
+        reply_markup: this.buildSubscriptionKeyboard(sub, true),
+      });
+    });
+
+    // /stop — Pauses personal DM alerts
+    this.bot.onText(/^\/stop/, async (msg) => {
+      const chatId = msg.chat.id;
+      const isUserAdmin = this.isAdmin(msg);
+      store.recordUserAction(chatId, msg.from, '/stop (Paused Alerts)');
+      const sub = store.setSubscriberActive(chatId, false);
+      await this.bot.sendMessage(
+        chatId,
+        `🔕 <b>Personal alerts paused.</b>\nSend /start anytime or tap the button below to resume!`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: this.buildSubscriptionKeyboard(sub, isUserAdmin),
+        }
+      );
+    });
+
+    // /settings — Opens personal filter buttons
+    this.bot.onText(/^\/settings/, async (msg) => {
+      const chatId = msg.chat.id;
+      const isUserAdmin = this.isAdmin(msg);
+      const sub = store.recordUserAction(chatId, msg.from, '/settings');
+      await this.bot.sendMessage(
+        chatId,
+        `⚙️ <b>Your Personal Alert Preferences</b>\nToggle which launchpads send alerts to your DM:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: this.buildSubscriptionKeyboard(sub, isUserAdmin),
+        }
+      );
+    });
+
+    // 👑 ADMIN ONLY: /users — Shows WHO is using the bot (@username, name, ID) and HOW they are using it!
+    this.bot.onText(/^\/users/, async (msg) => {
+      if (!this.isAdmin(msg)) return; // Strictly invisible/blocked for normal users
+      await this.sendAdminUsersReport(msg.chat.id);
+    });
+
+    // 👑 ADMIN ONLY: /status
+    this.bot.onText(/^\/status/, async (msg) => {
+      if (!this.isAdmin(msg)) return;
+      await this.sendAdminStatusReport(msg.chat.id);
+    });
+
+    // /latest — Available to all users to preview the latest launch
+    this.bot.onText(/^\/latest/, async (msg) => {
+      const chatId = msg.chat.id;
+      store.recordUserAction(chatId, msg.from, '/latest');
+      const latest = store.state.recentLaunches[0];
+      if (!latest) {
+        return this.bot.sendMessage(chatId, 'No launches cached yet. Wait a few seconds for the scanner.');
+      }
+      await this.sendToTarget(latest, chatId);
+    });
+
+    // 👑 ADMIN ONLY: /test
+    this.bot.onText(/^\/test/, async (msg) => {
+      if (!this.isAdmin(msg)) return;
+      const chatId = msg.chat.id;
+      const sample = store.state.recentLaunches[0];
+      if (!sample) {
+        return this.bot.sendMessage(chatId, 'Still fetching initial launches, try again in 2 seconds.');
+      }
+      const sentOk = await this.sendLaunchAlert(sample);
+      if (!sentOk) {
+        await this.sendToTarget(sample, chatId);
+      } else {
+        await this.bot.sendMessage(
+          chatId,
+          `✅ Broadcasted test alert for <b>${sample.name}</b> to your Channel & active Personal DM subscribers!`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    });
+
+    // 👑 ADMIN ONLY: /setchannel
+    this.bot.onText(/^\/setchannel\s+(.+)/, async (msg, match) => {
+      if (!this.isAdmin(msg)) return;
+      const newChannel = match[1].trim();
+      store.updateSettings({ channelId: newChannel === 'none' ? '' : newChannel });
+      await this.bot.sendMessage(
+        msg.chat.id,
+        `✅ Target alert channel updated to: <code>${newChannel}</code>`,
+        { parse_mode: 'HTML' }
+      );
+    });
+
+    // 👑 ADMIN ONLY: /setref
+    this.bot.onText(/^\/setref\s+(\S+)\s+(\S+)/, async (msg, match) => {
+      if (!this.isAdmin(msg)) return;
+      const botName = match[1].toLowerCase();
+      const code = match[2].trim();
+      if (botName === 'maestro') store.updateSettings({ maestroRef: code });
+      else if (botName === 'banana') store.updateSettings({ bananaRef: code });
+      else if (botName === 'sigma') store.updateSettings({ sigmaRef: code });
+      else {
+        return this.bot.sendMessage(msg.chat.id, 'Usage: /setref maestro|banana|sigma YOUR_CODE');
+      }
+      await this.bot.sendMessage(msg.chat.id, `✅ Updated <b>${botName}</b> referral code to <code>${code}</code>`, {
+        parse_mode: 'HTML',
+      });
+    });
+
+    // Interactive callback buttons
+    this.bot.on('callback_query', async (query) => {
+      const chatId = query.message?.chat?.id;
+      if (!chatId) return;
+
+      const isUserAdmin = this.isAdmin(query);
+      let sub = store.recordUserAction(chatId, query.from, `Button: ${query.data}`);
+
+      if (query.data === 'toggle_active') {
+        sub = store.setSubscriberActive(chatId, !sub.active);
+      } else if (query.data === 'toggle_prog') {
+        sub = store.toggleSubscriberPlatform(chatId, 'programmable');
+      } else if (query.data === 'toggle_stock') {
+        sub = store.toggleSubscriberPlatform(chatId, 'stockereum');
+      } else if (query.data === 'toggle_sender') {
+        sub = store.toggleSubscriberPlatform(chatId, 'sender');
+      } else if (query.data === 'preview_latest') {
+        await this.bot.answerCallbackQuery(query.id, { text: 'Sending latest launch...' });
+        const latest = store.state.recentLaunches[0];
+        if (latest) {
+          await this.sendToTarget(latest, chatId);
+        }
+        return;
+      } else if (query.data === 'show_help') {
+        await this.bot.answerCallbackQuery(query.id);
+        await this.bot.sendMessage(chatId, this.buildHelpText(isUserAdmin), { parse_mode: 'HTML' });
+        return;
+      } else if (query.data === 'admin_users') {
+        if (!isUserAdmin) {
+          return this.bot.answerCallbackQuery(query.id, { text: '⛔ Admin only', show_alert: true });
+        }
+        await this.bot.answerCallbackQuery(query.id);
+        await this.sendAdminUsersReport(chatId);
+        return;
+      } else if (query.data === 'admin_status') {
+        if (!isUserAdmin) {
+          return this.bot.answerCallbackQuery(query.id, { text: '⛔ Admin only', show_alert: true });
+        }
+        await this.bot.answerCallbackQuery(query.id);
+        await this.sendAdminStatusReport(chatId);
+        return;
+      }
+
+      try {
+        await this.bot.editMessageReplyMarkup(this.buildSubscriptionKeyboard(sub, isUserAdmin), {
+          chat_id: chatId,
+          message_id: query.message.message_id,
+        });
+        await this.bot.answerCallbackQuery(query.id, { text: 'Preferences updated!' });
+      } catch {
+        await this.bot.answerCallbackQuery(query.id);
+      }
+    });
+  }
+
+  async sendAdminUsersReport(chatId) {
+    const subs = Object.values(store.state.subscribers || {}).sort(
+      (a, b) => (b.lastActiveAt || b.subscribedAt || 0) - (a.lastActiveAt || a.subscribedAt || 0)
+    );
+
+    if (subs.length === 0) {
+      return this.bot.sendMessage(
+        chatId,
+        '👥 <b>No users have started the bot yet.</b>\nSend /start to register yourself!',
+        { parse_mode: 'HTML' }
+      );
+    }
+
+    const activeCount = subs.filter((s) => s.active).length;
+    const lines = [
+      `👑 <b>ADMIN USER ANALYTICS — WHO & HOW USING BOT</b>`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `👥 <b>Total Users:</b> ${subs.length}  |  🟢 <b>Active:</b> ${activeCount}  |  🔕 <b>Paused:</b> ${
+        subs.length - activeCount
+      }`,
+      ``,
+    ];
+
+    subs.slice(0, 30).forEach((u, idx) => {
+      const uname = u.username ? `@${escapeHtml(u.username)}` : '<i>No @username</i>';
+      const fullName = escapeHtml(`${u.firstName || ''} ${u.lastName || ''}`.trim() || 'User');
+      const statusIcon = u.active ? '🟢 Active' : '🔕 Paused';
+      const p = u.platforms || { programmable: true, stockereum: true, sender: true };
+      const filters =
+        [
+          p.programmable !== false ? '🟣Prog' : '',
+          p.stockereum !== false ? '🟢Stock' : '',
+          p.sender !== false ? '🔵Sender' : '',
+        ]
+          .filter(Boolean)
+          .join(', ') || 'None';
+
+      const lastSeen = u.lastActiveAt
+        ? new Date(u.lastActiveAt).toUTCString().replace('GMT', 'UTC')
+        : new Date(u.subscribedAt).toUTCString().replace('GMT', 'UTC');
+
+      lines.push(
+        `<b>${idx + 1}. ${fullName}</b> (${uname}) — <code>${u.chatId}</code>`,
+        `   ├ 📡 <b>Status:</b> ${statusIcon} | 🎯 <b>Watching:</b> ${filters}`,
+        `   ├ 📊 <b>Usage:</b> ${u.interactionsCount || 1} actions | 📩 <b>Alerts Sent:</b> ${
+          u.alertsReceived || 0
+        }`,
+        `   └ 🕒 <b>Last Action:</b> <code>${escapeHtml(u.lastAction || '/start')}</code> (${lastSeen})`,
+        ``
+      );
+    });
+
+    await this.bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML' });
+  }
+
+  async sendAdminStatusReport(chatId) {
+    const { stats, settings, subscribers } = store.state;
+    const allSubs = Object.values(subscribers || {});
+    const activeSubs = allSubs.filter((s) => s.active).length;
+    const lats = stats.latencies || {};
+    const statusMsg = [
+      `👑 <b>ADMIN SCANNER STATUS: ULTRA-FAST MODE</b>`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `👥 <b>Total Bot Users:</b> ${allSubs.length} (${activeSubs} active) — /users`,
+      `📢 <b>Public Channel:</b> <code>${settings.channelId || 'None (Personal DM Mode)'}</code>`,
+      `⏱ <b>Last Scan:</b> ${stats.lastPollAt ? new Date(stats.lastPollAt).toUTCString() : 'Pending'}`,
+      ``,
+      `⚡ <b>Live Stream Speed (Keep-Alive TLS):</b>`,
+      `• 🟣 Programmable (ETH): ${settings.enableProgrammable ? '✅ ON' : '❌ OFF'} (${lats.programmable || '--'}ms)`,
+      `• 🟣 Programmable (RH): ${settings.enableProgrammableRobinhood ? '✅ ON' : '❌ OFF'} (${
+        lats.programmable_robinhood || '--'
+      }ms)`,
+      `• 🟢 Stockereum: ${settings.enableStockereum ? '✅ ON' : '❌ OFF'} (${lats.stockereum || '--'}ms)`,
+      `• 🔵 Sender.family: ${settings.enableSender ? '✅ ON' : '❌ OFF'} (${lats.sender || '--'}ms)`,
+      ``,
+      `📊 <b>Alerts Broadcasted:</b> ${stats.totalAlertsSent}`,
+      `• Tracked CAs in DB: ${Object.keys(store.state.seenTokens).length}`,
+    ].join('\n');
+
+    await this.bot.sendMessage(chatId, statusMsg, { parse_mode: 'HTML' });
+  }
+
+  async sendToTarget(launch, targetChatId) {
+    if (!this.bot || !this.isConnected || !targetChatId) return false;
+
+    const { caption, replyMarkup } = buildTelegramAlert(launch, store.state.settings);
+
+    try {
+      if (launch.image && launch.image.startsWith('http')) {
+        try {
+          await this.bot.sendPhoto(targetChatId, launch.image, {
+            caption,
+            parse_mode: 'HTML',
+            reply_markup: replyMarkup,
+          });
+          store.incrementUserAlertsReceived(targetChatId);
+          return true;
+        } catch {
+          // Fallback to text message if image fails
+        }
+      }
+
+      await this.bot.sendMessage(targetChatId, caption, {
+        parse_mode: 'HTML',
+        disable_web_page_preview: false,
+        reply_markup: replyMarkup,
+      });
+      store.incrementUserAlertsReceived(targetChatId);
+      return true;
+    } catch (err) {
+      if (err.message && (err.message.includes('403') || err.message.includes('blocked'))) {
+        store.setSubscriberActive(targetChatId, false);
+      }
+      console.error(`[TelegramBot] ❌ Failed to send alert to ${targetChatId}:`, err.message);
+      return false;
+    }
+  }
+
+  async sendLaunchAlert(launch, overrideChatId = null) {
+    if (!this.bot || !this.isConnected) return false;
+
+    if (overrideChatId) {
+      return this.sendToTarget(launch, overrideChatId);
+    }
+
+    const targets = new Set();
+
+    const channelId = store.state.settings.channelId;
+    if (channelId && channelId !== '@your_channel_here' && channelId.trim() !== '') {
+      targets.add(channelId.trim());
+    }
+
+    const subs = store.getActiveSubscribersForPlatform(launch.platformKey);
+    for (const sub of subs) {
+      targets.add(String(sub.chatId));
+    }
+
+    if (targets.size === 0) {
+      return false;
+    }
+
+    const results = await Promise.allSettled(
+      Array.from(targets).map((chatId) => this.sendToTarget(launch, chatId))
+    );
+    const successCount = results.filter((r) => r.status === 'fulfilled' && r.value === true).length;
+    store.save();
+
+    return successCount > 0;
+  }
+}
+
+module.exports = new AlertBot();
