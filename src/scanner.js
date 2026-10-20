@@ -139,12 +139,26 @@ class LaunchScanner {
             `[Scanner] ⚡ INSTANT LAUNCH DETECTED on ${launch.platformName} (${detectLagMs}ms): ${launch.name} ($${launch.symbol}) -> ${launch.address}`
           );
 
-          // Fire Telegram broadcast immediately in parallel without blocking the next token!
-          alertBot
-            .sendLaunchAlert(launch)
-            .then((sent) => {
-              store.addRecentLaunch(launch, sent);
-              if (sent) store.incrementAlertStat(platformKey);
+          // Enrich with DexScreener stats immediately if already indexed, then fire Telegram alert
+          fetchDexScreenerStats(launch.address)
+            .then((dex) => {
+              const enriched = dex
+                ? {
+                    ...launch,
+                    marketCapUsd: dex.marketCapUsd ?? launch.marketCapUsd,
+                    volumeUsd: dex.volumeUsd ?? launch.volumeUsd,
+                    priceChange5m: dex.priceChange5m,
+                    buys: dex.buys,
+                    sells: dex.sells,
+                    trades: dex.trades || launch.trades,
+                    liquidityUsd: dex.liquidityUsd,
+                    poolQuoteEth: dex.poolQuoteEth ?? launch.poolQuoteEth,
+                  }
+                : launch;
+              return alertBot.sendLaunchAlert(enriched).then((sent) => {
+                store.addRecentLaunch(enriched, sent);
+                if (sent) store.incrementAlertStat(platformKey);
+              });
             })
             .catch((e) => console.error('[Scanner] Alert dispatch error:', e.message));
         }

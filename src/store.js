@@ -117,7 +117,23 @@ class Store {
     const existsIdx = this.state.recentLaunches.findIndex(
       (x) => x.address.toLowerCase() === launch.address.toLowerCase() && x.platformKey === launch.platformKey
     );
-    const entry = { ...launch, alerted, discoveredAt: Date.now() };
+    const existing = existsIdx !== -1 ? this.state.recentLaunches[existsIdx] : {};
+    // Preserve non-null live stats (marketCapUsd, volumeUsd, buys, sells, liquidityUsd) so a null API poll never flickers them back to null!
+    const entry = {
+      ...existing,
+      ...launch,
+      marketCapUsd: launch.marketCapUsd ?? existing.marketCapUsd ?? null,
+      volumeUsd: launch.volumeUsd ?? existing.volumeUsd ?? null,
+      volumeCoin: launch.volumeCoin ?? existing.volumeCoin ?? null,
+      poolQuoteEth: launch.poolQuoteEth ?? existing.poolQuoteEth ?? null,
+      liquidityUsd: launch.liquidityUsd ?? existing.liquidityUsd ?? null,
+      priceChange5m: launch.priceChange5m ?? existing.priceChange5m ?? null,
+      buys: launch.buys ?? existing.buys,
+      sells: launch.sells ?? existing.sells,
+      trades: launch.trades || existing.trades || 0,
+      alerted: alerted || Boolean(existing.alerted),
+      discoveredAt: existing.discoveredAt || Date.now(),
+    };
     if (existsIdx !== -1) {
       this.state.recentLaunches[existsIdx] = entry;
     } else {

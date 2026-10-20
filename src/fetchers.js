@@ -322,6 +322,7 @@ async function fetchDexScreenerStats(tokenAddress) {
       sells,
       trades: buys + sells,
       liquidityUsd: pair.liquidity?.usd ?? null,
+      poolQuoteEth: pair.liquidity?.quote ?? null,
     };
   } catch {
     return null;

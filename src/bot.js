@@ -583,10 +583,20 @@ class AlertBot {
       return;
     }
 
-    // Merge new live stats into the tracked launch
+    // Merge new live stats into the tracked launch WITHOUT overwriting valid stats with null!
+    const prev = tracked.launch;
     tracked.launch = {
-      ...tracked.launch,
+      ...prev,
       ...updatedLaunch,
+      marketCapUsd: updatedLaunch.marketCapUsd ?? prev.marketCapUsd ?? null,
+      volumeUsd: updatedLaunch.volumeUsd ?? prev.volumeUsd ?? null,
+      volumeCoin: updatedLaunch.volumeCoin ?? prev.volumeCoin ?? null,
+      poolQuoteEth: updatedLaunch.poolQuoteEth ?? prev.poolQuoteEth ?? null,
+      liquidityUsd: updatedLaunch.liquidityUsd ?? prev.liquidityUsd ?? null,
+      priceChange5m: updatedLaunch.priceChange5m ?? prev.priceChange5m ?? null,
+      buys: updatedLaunch.buys ?? prev.buys,
+      sells: updatedLaunch.sells ?? prev.sells,
+      trades: updatedLaunch.trades || prev.trades || 0,
     };
 
     const { caption, replyMarkup } = buildTelegramAlert(tracked.launch, store.state.settings);

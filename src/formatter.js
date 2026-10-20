@@ -43,36 +43,45 @@ function buildTelegramAlert(launch, settings = {}) {
   lines.push(`📊 <b>Launch Details:</b>`);
   lines.push(`├ 🧩 <b>Type / Pair:</b> ${escapeHtml(launch.category || launch.quoteSymbol || 'ETH')}`);
 
-  if (launch.marketCapUsd !== null && launch.marketCapUsd !== undefined) {
+  if (launch.marketCapUsd !== null && launch.marketCapUsd !== undefined && Number(launch.marketCapUsd) > 0) {
     const chg =
       launch.priceChange5m !== undefined && launch.priceChange5m !== null
         ? ` (${launch.priceChange5m >= 0 ? '🟢 +' : '🔴 '}${launch.priceChange5m}%)`
         : '';
     lines.push(`├ 💰 <b>Market Cap:</b> ${formatUsd(launch.marketCapUsd)}${chg}`);
+  } else {
+    lines.push(`├ 💰 <b>Market Cap:</b> Indexing...`);
   }
-  if (
-    (launch.volumeUsd !== null && launch.volumeUsd !== undefined && Number(launch.volumeUsd) > 0) ||
-    (launch.volumeCoin !== null && launch.volumeCoin !== undefined && Number(launch.volumeCoin) > 0) ||
-    (launch.trades && Number(launch.trades) > 0)
-  ) {
+
+  const hasUsdVol = launch.volumeUsd !== null && launch.volumeUsd !== undefined && Number(launch.volumeUsd) > 0;
+  const hasCoinVol = launch.volumeCoin !== null && launch.volumeCoin !== undefined && Number(launch.volumeCoin) > 0;
+
+  if (hasUsdVol || hasCoinVol) {
     const volParts = [];
-    if (launch.volumeUsd !== null && launch.volumeUsd !== undefined) {
+    if (hasUsdVol) {
       volParts.push(formatUsd(launch.volumeUsd));
     }
-    if (launch.volumeCoin !== null && launch.volumeCoin !== undefined && Number(launch.volumeCoin) > 0) {
+    if (hasCoinVol) {
       volParts.push(`${Number(launch.volumeCoin).toFixed(3)} ${escapeHtml(launch.quoteSymbol || 'ETH')}`);
     }
-    if (launch.buys !== undefined && launch.sells !== undefined && (launch.buys > 0 || launch.sells > 0)) {
-      volParts.push(`🟢 ${launch.buys}B / 🔴 ${launch.sells}S`);
-    } else if (launch.trades) {
-      volParts.push(`${launch.trades} trades`);
-    }
-    lines.push(`├ 📊 <b>Live Volume:</b> ${volParts.join(' • ') || '$0.00'}`);
+    lines.push(`├ 📊 <b>Live Volume (24h):</b> ${volParts.join(' • ')}`);
   } else {
-    lines.push(`├ 📊 <b>Live Volume:</b> $0.00 (⏳ Watching trades...)`);
+    lines.push(`├ 📊 <b>Live Volume (24h):</b> $0.00 (Fresh Launch)`);
   }
-  if (launch.poolQuoteEth !== null && launch.poolQuoteEth !== undefined) {
-    lines.push(`├ 💧 <b>Pool Liquidity:</b> ${Number(launch.poolQuoteEth).toFixed(3)} ${escapeHtml(launch.quoteSymbol || 'ETH')}`);
+
+  if (launch.buys !== undefined && launch.sells !== undefined && (launch.buys > 0 || launch.sells > 0)) {
+    lines.push(`├ 🔄 <b>Transactions:</b> 🟢 ${launch.buys} Buys  |  🔴 ${launch.sells} Sells`);
+  } else if (launch.trades && Number(launch.trades) > 0) {
+    lines.push(`├ 🔄 <b>Transactions:</b> ${launch.trades} Trades`);
+  }
+
+  if (launch.poolQuoteEth !== null && launch.poolQuoteEth !== undefined && Number(launch.poolQuoteEth) > 0) {
+    const liqUsdStr = launch.liquidityUsd ? ` (${formatUsd(launch.liquidityUsd)})` : '';
+    lines.push(
+      `├ 💧 <b>Pool Liquidity:</b> ${Number(launch.poolQuoteEth).toFixed(3)} ${escapeHtml(
+        launch.quoteSymbol || 'ETH'
+      )}${liqUsdStr}`
+    );
   } else if (launch.liquidityUsd) {
     lines.push(`├ 💧 <b>Pool Liquidity:</b> ${formatUsd(launch.liquidityUsd)}`);
   }
