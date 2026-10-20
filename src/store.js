@@ -38,6 +38,50 @@ class Store {
   constructor() {
     this.ensureDir();
     this.state = this.load();
+    this.seedInitialSubscribers();
+  }
+
+  /**
+   * Ensures that when Render redeploys a fresh container:
+   * 1. ADMIN_USER_ID is automatically subscribed immediately on startup (no need to type /start again!)
+   * 2. Any comma-separated IDs in INITIAL_SUBSCRIBERS env var are also auto-restored
+   */
+  seedInitialSubscribers() {
+    const idsToSeed = new Set();
+    if (process.env.ADMIN_USER_ID && process.env.ADMIN_USER_ID.trim() !== '') {
+      idsToSeed.add(process.env.ADMIN_USER_ID.trim());
+    }
+    if (process.env.INITIAL_SUBSCRIBERS) {
+      process.env.INITIAL_SUBSCRIBERS.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((id) => idsToSeed.add(id));
+    }
+
+    let changed = false;
+    for (const id of idsToSeed) {
+      if (!this.state.subscribers[id]) {
+        this.state.subscribers[id] = {
+          chatId: String(id),
+          username: id === process.env.ADMIN_USER_ID?.trim() ? 'Admin (Owner)' : '',
+          firstName: id === process.env.ADMIN_USER_ID?.trim() ? 'Admin' : 'Subscriber',
+          lastName: '',
+          subscribedAt: Date.now(),
+          lastActiveAt: Date.now(),
+          lastAction: 'Auto-Restored on Boot',
+          interactionsCount: 1,
+          alertsReceived: 0,
+          active: true,
+          platforms: {
+            programmable: true,
+            stockereum: true,
+            sender: true,
+          },
+        };
+        changed = true;
+      }
+    }
+    if (changed) this.save();
   }
 
   ensureDir() {

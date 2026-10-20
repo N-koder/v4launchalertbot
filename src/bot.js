@@ -35,6 +35,7 @@ class AlertBot {
       this.isConnected = true;
       this.botUsername = me.username;
       console.log(`[TelegramBot] ✅ Connected as @${me.username}`);
+      await this.hydrateSubscribersFromTelegram();
       await this.setupCommandMenus();
       this.registerCommands();
 
@@ -71,6 +72,32 @@ class AlertBot {
     if (!adminId || adminId.trim() === '') return false;
     const userId = msgOrUser?.from ? msgOrUser.from.id : msgOrUser?.id;
     return String(userId) === String(adminId.trim());
+  }
+
+  /**
+   * Fetches real @username and First/Last name directly from Telegram API for any auto-restored subscriber IDs!
+   */
+  async hydrateSubscribersFromTelegram() {
+    if (!this.bot) return;
+    const subs = Object.values(store.state.subscribers || {});
+    for (const sub of subs) {
+      if (!sub.username || sub.username === 'Admin (Owner)') {
+        try {
+          const chat = await this.bot.getChat(sub.chatId);
+          if (chat) {
+            store.upsertSubscriber(sub.chatId, {
+              username: chat.username || sub.username || '',
+              firstName: chat.first_name || sub.firstName || 'User',
+              lastName: chat.last_name || sub.lastName || '',
+              lastAction: sub.lastAction || 'Auto-Restored on Boot',
+              active: sub.active,
+            });
+          }
+        } catch {
+          // Ignore if chat not reachable yet
+        }
+      }
+    }
   }
 
   /**
