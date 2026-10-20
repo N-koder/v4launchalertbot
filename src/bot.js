@@ -15,6 +15,9 @@ class AlertBot {
     this.bot = null;
     this.isConnected = false;
     this.botUsername = null;
+    // Tracks sent Telegram messages so we can live-update their Volume & Market Cap in real-time as trades happen!
+    // key: `${platformKey}:${address.toLowerCase()}` -> { launch, sentAt, lastCaption, messages: [{ chatId, messageId, isPhoto }] }
+    this.liveTrackedAlerts = new Map();
   }
 
   async init() {
@@ -511,15 +514,35 @@ class AlertBot {
     if (!this.bot || !this.isConnected || !targetChatId) return false;
 
     const { caption, replyMarkup } = buildTelegramAlert(launch, store.state.settings);
+    const trackKey = `${launch.platformKey}:${String(launch.address).toLowerCase()}`;
+
+    const recordMessage = (msgObj, isPhoto) => {
+      if (!msgObj || !msgObj.message_id) return;
+      if (!this.liveTrackedAlerts.has(trackKey)) {
+        this.liveTrackedAlerts.set(trackKey, {
+          launch: { ...launch },
+          sentAt: Date.now(),
+          lastCaption: caption,
+          messages: [],
+        });
+      }
+      const entry = this.liveTrackedAlerts.get(trackKey);
+      entry.messages.push({
+        chatId: targetChatId,
+        messageId: msgObj.message_id,
+        isPhoto,
+      });
+    };
 
     try {
       if (launch.image && launch.image.startsWith('http')) {
         try {
-          await this.bot.sendPhoto(targetChatId, launch.image, {
+          const sentMsg = await this.bot.sendPhoto(targetChatId, launch.image, {
             caption,
             parse_mode: 'HTML',
             reply_markup: replyMarkup,
           });
+          recordMessage(sentMsg, true);
           store.incrementUserAlertsReceived(targetChatId);
           return true;
         } catch {
@@ -527,11 +550,12 @@ class AlertBot {
         }
       }
 
-      await this.bot.sendMessage(targetChatId, caption, {
+      const sentMsg = await this.bot.sendMessage(targetChatId, caption, {
         parse_mode: 'HTML',
         disable_web_page_preview: false,
         reply_markup: replyMarkup,
       });
+      recordMessage(sentMsg, false);
       store.incrementUserAlertsReceived(targetChatId);
       return true;
     } catch (err) {
@@ -541,6 +565,58 @@ class AlertBot {
       console.error(`[TelegramBot] ❌ Failed to send alert to ${targetChatId}:`, err.message);
       return false;
     }
+  }
+
+  /**
+   * Live-edits already-sent Telegram alert messages in place when Volume, Market Cap, or Trades change!
+   */
+  async updateLiveAlertMessages(updatedLaunch) {
+    if (!this.bot || !this.isConnected || !updatedLaunch?.address) return;
+
+    const trackKey = `${updatedLaunch.platformKey}:${String(updatedLaunch.address).toLowerCase()}`;
+    const tracked = this.liveTrackedAlerts.get(trackKey);
+    if (!tracked || tracked.messages.length === 0) return;
+
+    // Expire live tracking after 30 minutes to keep Telegram rate limits clean
+    if (Date.now() - tracked.sentAt > 30 * 60 * 1000) {
+      this.liveTrackedAlerts.delete(trackKey);
+      return;
+    }
+
+    // Merge new live stats into the tracked launch
+    tracked.launch = {
+      ...tracked.launch,
+      ...updatedLaunch,
+    };
+
+    const { caption, replyMarkup } = buildTelegramAlert(tracked.launch, store.state.settings);
+    if (caption === tracked.lastCaption) return; // Nothing changed yet
+    tracked.lastCaption = caption;
+
+    await Promise.allSettled(
+      tracked.messages.map(async (m) => {
+        try {
+          if (m.isPhoto) {
+            await this.bot.editMessageCaption(caption, {
+              chat_id: m.chatId,
+              message_id: m.messageId,
+              parse_mode: 'HTML',
+              reply_markup: replyMarkup,
+            });
+          } else {
+            await this.bot.editMessageText(caption, {
+              chat_id: m.chatId,
+              message_id: m.messageId,
+              parse_mode: 'HTML',
+              disable_web_page_preview: false,
+              reply_markup: replyMarkup,
+            });
+          }
+        } catch {
+          // Ignore 'message is not modified' or rate limit warnings
+        }
+      })
+    );
   }
 
   async sendLaunchAlert(launch, overrideChatId = null) {

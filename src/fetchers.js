@@ -298,9 +298,40 @@ async function fetchSender() {
   return results;
 }
 
+/**
+ * 4. Fetch live real-time Market Cap, Volume, Price Change & Buys/Sells from DexScreener API
+ * Used by the Live Telegram Message Updater so even Programmable tokens get real-time volume & price updates!
+ */
+async function fetchDexScreenerStats(tokenAddress) {
+  try {
+    const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`;
+    const data = await fetchJsonFast(url, 3500);
+    if (!data || !Array.isArray(data.pairs) || data.pairs.length === 0) return null;
+
+    // Pick highest volume or primary pair
+    const pair = data.pairs[0];
+    const buys = pair.txns?.h24?.buys ?? 0;
+    const sells = pair.txns?.h24?.sells ?? 0;
+    return {
+      marketCapUsd: pair.marketCap || pair.fdv || null,
+      volumeUsd: pair.volume?.h24 ?? null,
+      volume5mUsd: pair.volume?.m5 ?? null,
+      priceChange5m: pair.priceChange?.m5 ?? null,
+      priceChange24h: pair.priceChange?.h24 ?? null,
+      buys,
+      sells,
+      trades: buys + sells,
+      liquidityUsd: pair.liquidity?.usd ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   fetchProgrammableEthereum,
   fetchProgrammableRobinhood,
   fetchStockereum,
   fetchSender,
+  fetchDexScreenerStats,
 };

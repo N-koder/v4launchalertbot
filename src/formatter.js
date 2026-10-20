@@ -44,11 +44,16 @@ function buildTelegramAlert(launch, settings = {}) {
   lines.push(`├ 🧩 <b>Type / Pair:</b> ${escapeHtml(launch.category || launch.quoteSymbol || 'ETH')}`);
 
   if (launch.marketCapUsd !== null && launch.marketCapUsd !== undefined) {
-    lines.push(`├ 💰 <b>Market Cap:</b> ${formatUsd(launch.marketCapUsd)}`);
+    const chg =
+      launch.priceChange5m !== undefined && launch.priceChange5m !== null
+        ? ` (${launch.priceChange5m >= 0 ? '🟢 +' : '🔴 '}${launch.priceChange5m}%)`
+        : '';
+    lines.push(`├ 💰 <b>Market Cap:</b> ${formatUsd(launch.marketCapUsd)}${chg}`);
   }
   if (
-    (launch.volumeUsd !== null && launch.volumeUsd !== undefined) ||
-    (launch.volumeCoin !== null && launch.volumeCoin !== undefined)
+    (launch.volumeUsd !== null && launch.volumeUsd !== undefined && Number(launch.volumeUsd) > 0) ||
+    (launch.volumeCoin !== null && launch.volumeCoin !== undefined && Number(launch.volumeCoin) > 0) ||
+    (launch.trades && Number(launch.trades) > 0)
   ) {
     const volParts = [];
     if (launch.volumeUsd !== null && launch.volumeUsd !== undefined) {
@@ -57,15 +62,19 @@ function buildTelegramAlert(launch, settings = {}) {
     if (launch.volumeCoin !== null && launch.volumeCoin !== undefined && Number(launch.volumeCoin) > 0) {
       volParts.push(`${Number(launch.volumeCoin).toFixed(3)} ${escapeHtml(launch.quoteSymbol || 'ETH')}`);
     }
-    if (launch.trades) {
+    if (launch.buys !== undefined && launch.sells !== undefined && (launch.buys > 0 || launch.sells > 0)) {
+      volParts.push(`🟢 ${launch.buys}B / 🔴 ${launch.sells}S`);
+    } else if (launch.trades) {
       volParts.push(`${launch.trades} trades`);
     }
-    lines.push(`├ 📊 <b>Volume:</b> ${volParts.join(' • ') || '$0.00'}`);
+    lines.push(`├ 📊 <b>Live Volume:</b> ${volParts.join(' • ') || '$0.00'}`);
   } else {
-    lines.push(`├ 📊 <b>Volume:</b> $0.00 (Fresh Launch)`);
+    lines.push(`├ 📊 <b>Live Volume:</b> $0.00 (⏳ Watching trades...)`);
   }
   if (launch.poolQuoteEth !== null && launch.poolQuoteEth !== undefined) {
     lines.push(`├ 💧 <b>Pool Liquidity:</b> ${Number(launch.poolQuoteEth).toFixed(3)} ${escapeHtml(launch.quoteSymbol || 'ETH')}`);
+  } else if (launch.liquidityUsd) {
+    lines.push(`├ 💧 <b>Pool Liquidity:</b> ${formatUsd(launch.liquidityUsd)}`);
   }
   if (launch.hookAddress) {
     lines.push(

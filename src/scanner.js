@@ -5,6 +5,7 @@ const {
   fetchProgrammableRobinhood,
   fetchStockereum,
   fetchSender,
+  fetchDexScreenerStats,
 } = require('./fetchers');
 
 /**
@@ -35,6 +36,35 @@ class LaunchScanner {
     );
     this.launchIndependentStream('stockereum', () => store.state.settings.enableStockereum, fetchStockereum);
     this.launchIndependentStream('sender', () => store.state.settings.enableSender, fetchSender);
+
+    // Background Live Volume & MarketCap Updater (ticks every 6 seconds to live-edit active Telegram alerts!)
+    setInterval(() => this.refreshLiveTrackedDexStats(), 6000);
+  }
+
+  async refreshLiveTrackedDexStats() {
+    if (!alertBot.liveTrackedAlerts || alertBot.liveTrackedAlerts.size === 0) return;
+
+    for (const [trackKey, entry] of alertBot.liveTrackedAlerts.entries()) {
+      if (Date.now() - entry.sentAt > 30 * 60 * 1000) {
+        alertBot.liveTrackedAlerts.delete(trackKey);
+        continue;
+      }
+      const dexStats = await fetchDexScreenerStats(entry.launch.address);
+      if (dexStats) {
+        const merged = {
+          ...entry.launch,
+          marketCapUsd: dexStats.marketCapUsd ?? entry.launch.marketCapUsd,
+          volumeUsd: dexStats.volumeUsd ?? entry.launch.volumeUsd,
+          priceChange5m: dexStats.priceChange5m,
+          buys: dexStats.buys,
+          sells: dexStats.sells,
+          trades: dexStats.trades || entry.launch.trades,
+          liquidityUsd: dexStats.liquidityUsd,
+        };
+        store.addRecentLaunch(merged, true);
+        await alertBot.updateLiveAlertMessages(merged);
+      }
+    }
   }
 
   launchIndependentStream(platformKey, isEnabledFn, fetcherFn) {
@@ -87,6 +117,15 @@ class LaunchScanner {
       if (!launch.address) continue;
 
       const alreadySeen = store.hasSeen(platformKey, launch.address);
+      if (alreadySeen) {
+        // If this token has an active Telegram message, live-update its Volume, Market Cap & Trades!
+        const trackKey = `${platformKey}:${String(launch.address).toLowerCase()}`;
+        if (alertBot.liveTrackedAlerts && alertBot.liveTrackedAlerts.has(trackKey)) {
+          store.addRecentLaunch(launch, true);
+          alertBot.updateLiveAlertMessages(launch).catch(() => {});
+        }
+        continue;
+      }
       if (!alreadySeen) {
         store.markSeen(platformKey, launch.address);
         const ageMs = launch.launchedAtMs ? Date.now() - launch.launchedAtMs : 0;
