@@ -78,6 +78,10 @@ class LaunchScanner {
     const isInitialized = store.isPlatformInitialized(platformKey);
     const chronological = [...items].sort((a, b) => (a.launchedAtMs || 0) - (b.launchedAtMs || 0));
 
+    // Only alert on genuinely fresh launches (launched within the last 10 minutes)
+    // This prevents old tokens from triggering alerts if an API source temporarily resets or re-indexes
+    const MAX_LAUNCH_AGE_MS = 10 * 60 * 1000;
+
     let newFound = 0;
     for (const launch of chronological) {
       if (!launch.address) continue;
@@ -85,12 +89,13 @@ class LaunchScanner {
       const alreadySeen = store.hasSeen(platformKey, launch.address);
       if (!alreadySeen) {
         store.markSeen(platformKey, launch.address);
+        const ageMs = launch.launchedAtMs ? Date.now() - launch.launchedAtMs : 0;
 
-        if (!isInitialized) {
+        if (!isInitialized || ageMs > MAX_LAUNCH_AGE_MS) {
           store.addRecentLaunch(launch, false);
         } else {
           newFound++;
-          const detectLagMs = launch.launchedAtMs ? Math.max(0, Date.now() - launch.launchedAtMs) : 0;
+          const detectLagMs = Math.max(0, ageMs);
           console.log(
             `[Scanner] ⚡ INSTANT LAUNCH DETECTED on ${launch.platformName} (${detectLagMs}ms): ${launch.name} ($${launch.symbol}) -> ${launch.address}`
           );

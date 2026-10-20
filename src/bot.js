@@ -34,6 +34,24 @@ class AlertBot {
       console.log(`[TelegramBot] ✅ Connected as @${me.username}`);
       await this.setupCommandMenus();
       this.registerCommands();
+
+      // Suppress noisy 409 Conflict logs during Render zero-downtime rolling deploys
+      this.bot.on('polling_error', (err) => {
+        if (err?.message && err.message.includes('409 Conflict')) return;
+        console.warn('[TelegramBot] Polling warning:', err.message);
+      });
+
+      // Handle SIGTERM cleanly so Render stops old container's Telegram polling before starting the new one
+      const shutdown = async () => {
+        if (this.bot) {
+          try {
+            await this.bot.stopPolling();
+          } catch {}
+        }
+        process.exit(0);
+      };
+      process.once('SIGTERM', shutdown);
+      process.once('SIGINT', shutdown);
     } catch (err) {
       console.error('[TelegramBot] ❌ Failed to connect with TELEGRAM_BOT_TOKEN:', err.message);
       this.bot = null;

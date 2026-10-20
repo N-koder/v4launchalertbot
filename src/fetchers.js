@@ -53,10 +53,10 @@ function fetchJsonFast(urlStr, timeoutMs = 4500) {
 }
 
 /**
- * 1. Fetch Programmable.market (Ethereum Mainnet) — Smallest pageSize=6 for fastest response
+ * 1. Fetch Programmable.market (Ethereum Mainnet) — Fetch 25 so classic & custom feeds never shift older items into view
  */
 async function fetchProgrammableEthereum() {
-  const url = 'https://programmable.market/api/explore/ethereum?page=1&pageSize=6&sort=newest&mode=all';
+  const url = 'https://programmable.market/api/explore/ethereum?page=1&pageSize=50&sort=newest&mode=all';
   const data = await fetchJsonFast(url);
   if (!data || !Array.isArray(data.items)) return [];
 
