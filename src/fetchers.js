@@ -185,11 +185,12 @@ async function resolveStockereumMeta(tokenAddress) {
     const webMatch = html.match(/\\"web\\":\\"(https?:\/\/[^"\\]+)\\"/);
     const xMatch = html.match(/\\"x\\":\\"(https?:\/\/[^"\\]+)\\"/);
     const tgMatch = html.match(/\\"tg\\":\\"(https?:\/\/[^"\\]+)\\"/);
+    const descMatch = html.match(/\\\\\\"description\\\\\\":\\\\\\"([^\\"]*)\\\\\\"/) || html.match(/\\"description\\":\\"([^"\\]+)\\"/);
 
     const out = {
       creator: creatorMatch ? creatorMatch[1] : null,
       hookAddress: hookMatch ? hookMatch[1] : null,
-      lore: '',
+      lore: descMatch && descMatch[1] && !descMatch[1].startsWith('Create a fixed-supply') ? descMatch[1].trim() : '',
       socials: {},
     };
 
