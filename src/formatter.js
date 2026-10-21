@@ -100,16 +100,17 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   lines.push(`<code>${ca}</code>`);
   lines.push(``);
   lines.push(`📊 <b>Launch Details (Live):</b>`);
-  lines.push(`├ 🧩 <b>Type / Pair:</b> ${escapeHtml(launch.category || launch.quoteSymbol || 'ETH')}`);
+  const detailLines = [];
+  detailLines.push(`🧩 <b>Type / Pair:</b> ${escapeHtml(launch.category || launch.quoteSymbol || 'ETH')}`);
 
   if (launch.marketCapUsd !== null && launch.marketCapUsd !== undefined && Number(launch.marketCapUsd) > 0) {
     const chg =
       launch.priceChange5m !== undefined && launch.priceChange5m !== null
         ? ` (${launch.priceChange5m >= 0 ? '🟢 +' : '🔴 '}${launch.priceChange5m}%)`
         : '';
-    lines.push(`├ 💰 <b>Market Cap:</b> ${formatUsd(launch.marketCapUsd)}${chg}`);
+    detailLines.push(`💰 <b>Market Cap:</b> ${formatUsd(launch.marketCapUsd)}${chg}`);
   } else {
-    lines.push(`├ 💰 <b>Market Cap:</b> Indexing...`);
+    detailLines.push(`💰 <b>Market Cap:</b> Indexing...`);
   }
 
   const hasUsdVol = launch.volumeUsd !== null && launch.volumeUsd !== undefined && Number(launch.volumeUsd) > 0;
@@ -123,53 +124,42 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
     if (hasCoinVol) {
       volParts.push(`${Number(launch.volumeCoin).toFixed(3)} ${escapeHtml(launch.quoteSymbol || 'ETH')}`);
     }
-    lines.push(`├ 📊 <b>Live Volume (24h):</b> ${volParts.join(' • ')}`);
+    detailLines.push(`📊 <b>Live Volume (24h):</b> ${volParts.join(' • ')}`);
   } else {
-    lines.push(`├ 📊 <b>Live Volume (24h):</b> $0.00 (Fresh Launch)`);
+    detailLines.push(`📊 <b>Live Volume (24h):</b> $0.00 (Fresh Launch)`);
   }
 
   const buysCount = launch.buys ?? 0;
   const sellsCount = launch.sells ?? 0;
   const totalTrades = launch.trades || buysCount + sellsCount || 0;
   if (buysCount > 0 || sellsCount > 0) {
-    lines.push(`├ 🔄 <b>Transactions:</b> 🟢 ${buysCount} Buys  |  🔴 ${sellsCount} Sells (${totalTrades} txns)`);
+    detailLines.push(`🔄 <b>Transactions:</b> 🟢 ${buysCount} Buys  |  🔴 ${sellsCount} Sells (${totalTrades} txns)`);
   } else {
-    lines.push(`├ 🔄 <b>Transactions:</b> ${totalTrades} Trades`);
-  }
-
-  if (launch.poolQuoteEth !== null && launch.poolQuoteEth !== undefined && Number(launch.poolQuoteEth) > 0) {
-    const liqUsdStr = launch.liquidityUsd ? ` (${formatUsd(launch.liquidityUsd)})` : '';
-    lines.push(
-      `├ 💧 <b>Pool Liquidity:</b> ${Number(launch.poolQuoteEth).toFixed(3)} ${escapeHtml(
-        launch.quoteSymbol || 'ETH'
-      )}${liqUsdStr}`
-    );
-  } else if (launch.liquidityUsd) {
-    lines.push(`├ 💧 <b>Pool Liquidity:</b> ${formatUsd(launch.liquidityUsd)}`);
+    detailLines.push(`🔄 <b>Transactions:</b> ${totalTrades} Trades`);
   }
 
   if (launch.hookAddress) {
-    lines.push(
-      `├ 🪝 <b>Uni v4 Hook:</b> <a href="https://etherscan.io/address/${launch.hookAddress}">${shortAddr(
+    detailLines.push(
+      `🪝 <b>Uni v4 Hook:</b> <a href="https://etherscan.io/address/${launch.hookAddress}">${shortAddr(
         launch.hookAddress
       )}</a>`
     );
   }
   if (launch.creator) {
-    lines.push(
-      `├ 👤 <b>Creator:</b> <a href="https://etherscan.io/address/${launch.creator}">${shortAddr(
+    detailLines.push(
+      `👤 <b>Creator:</b> <a href="https://etherscan.io/address/${launch.creator}">${shortAddr(
         launch.creator
       )}</a>`
     );
   }
   if (launch.blockNumber) {
-    lines.push(`├ 🧱 <b>Block:</b> #${escapeHtml(String(launch.blockNumber))}`);
+    detailLines.push(`🧱 <b>Block:</b> #${escapeHtml(String(launch.blockNumber))}`);
   }
 
-  const launchedTime = launch.launchedAtMs
-    ? new Date(launch.launchedAtMs).toUTCString().replace('GMT', 'UTC')
-    : 'Just now';
-  lines.push(`└ 🕒 <b>Launched:</b> ${escapeHtml(launchedTime)}`);
+  detailLines.forEach((dLine, idx) => {
+    const prefix = idx === detailLines.length - 1 ? '└' : '├';
+    lines.push(`${prefix} ${dLine}`);
+  });
 
   // Phanes-style Socials & Lore bar: 🌐 Web | 𝕏 X | ✈️ TG | 📖 Lore
   const socialBar = [];
