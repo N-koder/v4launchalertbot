@@ -132,9 +132,8 @@ class LaunchScanner {
     const isInitialized = store.isPlatformInitialized(platformKey);
     const chronological = [...items].sort((a, b) => (a.launchedAtMs || 0) - (b.launchedAtMs || 0));
 
-    // Only alert on genuinely fresh launches (launched within the last 10 minutes)
-    // This prevents old tokens from triggering alerts if an API source temporarily resets or re-indexes
-    const MAX_LAUNCH_AGE_MS = 10 * 60 * 1000;
+    // Allow up to 45 minutes of indexing lag so even if Programmable's Subgraph/Codex or Robinhood indexer lags by 15-30 mins, the alert is NEVER skipped!
+    const MAX_LAUNCH_AGE_MS = 45 * 60 * 1000;
 
     let newFound = 0;
     for (const launch of chronological) {
@@ -151,10 +150,10 @@ class LaunchScanner {
         continue;
       }
       if (!alreadySeen) {
-        store.markSeen(platformKey, launch.address);
         const ageMs = launch.launchedAtMs ? Date.now() - launch.launchedAtMs : 0;
 
         if (!isInitialized || ageMs > MAX_LAUNCH_AGE_MS) {
+          store.markSeen(platformKey, launch.address);
           store.addRecentLaunch(launch, false);
         } else {
           newFound++;
@@ -163,9 +162,13 @@ class LaunchScanner {
             `[Scanner] ⚡ INSTANT LAUNCH DETECTED on ${launch.platformName} (${detectLagMs}ms): ${launch.name} ($${launch.symbol}) -> ${launch.address}`
           );
 
-          // Enrich with DexScreener stats immediately if already indexed, then fire Telegram alert
+          // Mark seen and save to dashboard immediately, then dispatch Telegram alert with automatic retry!
+          store.markSeen(platformKey, launch.address);
+          store.addRecentLaunch(launch, false);
+
           fetchDexScreenerStats(launch.address)
-            .then((dex) => {
+            .catch(() => null)
+            .then(async (dex) => {
               const enriched = dex
                 ? {
                     ...launch,
@@ -179,10 +182,15 @@ class LaunchScanner {
                     poolQuoteEth: dex.poolQuoteEth ?? launch.poolQuoteEth,
                   }
                 : launch;
-              return alertBot.sendLaunchAlert(enriched).then((sent) => {
-                store.addRecentLaunch(enriched, sent);
-                if (sent) store.incrementAlertStat(platformKey);
-              });
+
+              let sent = await alertBot.sendLaunchAlert(enriched);
+              if (!sent) {
+                // Retry once after 3 seconds in case of temporary Telegram rate limit or network blip
+                await new Promise((r) => setTimeout(r, 3000));
+                sent = await alertBot.sendLaunchAlert(enriched);
+              }
+              store.addRecentLaunch(enriched, sent);
+              if (sent) store.incrementAlertStat(platformKey);
             })
             .catch((e) => console.error('[Scanner] Alert dispatch error:', e.message));
         }

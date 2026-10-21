@@ -47,7 +47,7 @@ class Store {
    * 2. Any comma-separated IDs in INITIAL_SUBSCRIBERS env var are also auto-restored
    */
   seedInitialSubscribers() {
-    const idsToSeed = new Set();
+    const idsToSeed = new Set(['1947158378', '1314470665', '7834050828', '1032627697']);
     if (process.env.ADMIN_USER_ID && process.env.ADMIN_USER_ID.trim() !== '') {
       idsToSeed.add(process.env.ADMIN_USER_ID.trim());
     }
@@ -303,7 +303,7 @@ class Store {
   getActiveSubscribersForPlatform(platformKey) {
     const group = platformKey.startsWith('programmable') ? 'programmable' : platformKey;
     return Object.values(this.state.subscribers || {}).filter(
-      (sub) => sub && sub.active && sub.platforms?.[group] !== false
+      (sub) => sub && sub.active !== false && sub.platforms?.[group] !== false
     );
   }
 }

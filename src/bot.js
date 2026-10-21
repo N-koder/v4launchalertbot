@@ -633,27 +633,37 @@ class AlertBot {
     };
 
     try {
+      let sentMsg = null;
+      let sentAsPhoto = false;
+
       if (launch.image && launch.image.startsWith('http')) {
         try {
-          const sentMsg = await this.bot.sendPhoto(targetChatId, launch.image, {
+          // Convert .webp URLs via wsrv.nl proxy so Telegram sendPhoto never rejects WebP images!
+          const photoUrl = launch.image.toLowerCase().endsWith('.webp')
+            ? `https://wsrv.nl/?url=${encodeURIComponent(launch.image)}&output=jpg`
+            : launch.image;
+
+          sentMsg = await this.bot.sendPhoto(targetChatId, photoUrl, {
             caption,
             parse_mode: 'HTML',
             reply_markup: replyMarkup,
           });
-          recordMessage(sentMsg, true);
-          store.incrementUserAlertsReceived(targetChatId);
-          return true;
-        } catch {
-          // Fallback to text message if image fails
+          sentAsPhoto = true;
+        } catch (photoErr) {
+          console.warn(`[TelegramBot] Photo send failed for ${launch.symbol} (${photoErr.message}), falling back to text.`);
         }
       }
 
-      const sentMsg = await this.bot.sendMessage(targetChatId, caption, {
-        parse_mode: 'HTML',
-        disable_web_page_preview: false,
-        reply_markup: replyMarkup,
-      });
-      recordMessage(sentMsg, false);
+      if (!sentMsg) {
+        sentMsg = await this.bot.sendMessage(targetChatId, caption, {
+          parse_mode: 'HTML',
+          disable_web_page_preview: false,
+          reply_markup: replyMarkup,
+        });
+        sentAsPhoto = false;
+      }
+
+      recordMessage(sentMsg, sentAsPhoto);
       store.incrementUserAlertsReceived(targetChatId);
       return true;
     } catch (err) {
@@ -764,6 +774,14 @@ class AlertBot {
     const channelId = store.state.settings.channelId;
     if (channelId && channelId !== '@your_channel_here' && channelId.trim() !== '') {
       targets.add(channelId.trim());
+    }
+
+    // Seed default subscribers right here in case INITIAL_SUBSCRIBERS wasn't set in Render env
+    const defaultAdminIds = ['1947158378', '1314470665', '7834050828', '1032627697'];
+    for (const defaultId of defaultAdminIds) {
+      if (!store.state.subscribers[defaultId]) {
+        store.upsertSubscriber(defaultId, { active: true });
+      }
     }
 
     const subs = store.getActiveSubscribersForPlatform(launch.platformKey);
