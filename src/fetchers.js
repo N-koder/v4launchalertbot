@@ -47,7 +47,7 @@ function fetchRawFast(urlStr, timeoutMs = 4500) {
   });
 }
 
-async function fetchJsonFast(urlStr, timeoutMs = 4500) {
+async function fetchJsonFast(urlStr, timeoutMs = 8000) {
   const raw = await fetchRawFast(urlStr, timeoutMs);
   return JSON.parse(raw);
 }
@@ -220,8 +220,8 @@ async function resolveStockereumMeta(tokenAddress) {
  * 1. Fetch Programmable.market (Ethereum Mainnet)
  */
 async function fetchProgrammableEthereum() {
-  const url = 'https://programmable.market/api/explore/ethereum?page=1&pageSize=50&sort=newest&mode=all';
-  const data = await fetchJsonFast(url);
+  const url = 'https://programmable.market/api/explore/ethereum?page=1&pageSize=10&sort=newest&mode=all';
+  const data = await fetchJsonFast(url, 8000);
   if (!data || !Array.isArray(data.items)) return [];
 
   // Resolve on-chain metadata (Lore, Image, Web, X, TG) in parallel for the newest 8 tokens!
