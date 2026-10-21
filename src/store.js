@@ -162,19 +162,37 @@ class Store {
       (x) => x.address.toLowerCase() === launch.address.toLowerCase() && x.platformKey === launch.platformKey
     );
     const existing = existsIdx !== -1 ? this.state.recentLaunches[existsIdx] : {};
-    // Preserve non-null live stats (marketCapUsd, volumeUsd, buys, sells, liquidityUsd) so a null API poll never flickers them back to null!
+    const mergedSocials = {
+      ...(existing.socials || {}),
+      ...(launch.socials || {}),
+    };
+
+    const pickPositive = (nextVal, prevVal) => {
+      if (nextVal !== null && nextVal !== undefined && Number(nextVal) > 0) return Number(nextVal);
+      if (prevVal !== null && prevVal !== undefined && Number(prevVal) > 0) return Number(prevVal);
+      return nextVal ?? prevVal ?? null;
+    };
+
     const entry = {
       ...existing,
       ...launch,
-      marketCapUsd: launch.marketCapUsd ?? existing.marketCapUsd ?? null,
-      volumeUsd: launch.volumeUsd ?? existing.volumeUsd ?? null,
-      volumeCoin: launch.volumeCoin ?? existing.volumeCoin ?? null,
-      poolQuoteEth: launch.poolQuoteEth ?? existing.poolQuoteEth ?? null,
-      liquidityUsd: launch.liquidityUsd ?? existing.liquidityUsd ?? null,
+      image:
+        launch.image && !launch.image.includes('programmable-landing-preview')
+          ? launch.image
+          : existing.image || launch.image,
+      creator: launch.creator || existing.creator || null,
+      hookAddress: launch.hookAddress || existing.hookAddress || null,
+      lore: launch.lore || existing.lore || '',
+      socials: mergedSocials,
+      marketCapUsd: pickPositive(launch.marketCapUsd, existing.marketCapUsd),
+      volumeUsd: Math.max(Number(launch.volumeUsd || 0), Number(existing.volumeUsd || 0)) || null,
+      volumeCoin: Math.max(Number(launch.volumeCoin || 0), Number(existing.volumeCoin || 0)) || null,
+      poolQuoteEth: pickPositive(launch.poolQuoteEth, existing.poolQuoteEth),
+      liquidityUsd: pickPositive(launch.liquidityUsd, existing.liquidityUsd),
       priceChange5m: launch.priceChange5m ?? existing.priceChange5m ?? null,
-      buys: launch.buys ?? existing.buys,
-      sells: launch.sells ?? existing.sells,
-      trades: launch.trades || existing.trades || 0,
+      buys: Math.max(Number(launch.buys || 0), Number(existing.buys || 0)),
+      sells: Math.max(Number(launch.sells || 0), Number(existing.sells || 0)),
+      trades: Math.max(Number(launch.trades || 0), Number(existing.trades || 0)),
       alerted: alerted || Boolean(existing.alerted),
       discoveredAt: existing.discoveredAt || Date.now(),
     };

@@ -454,12 +454,21 @@
         const cols = row.length;
         return `
           <div class="grid grid-cols-${cols} gap-1.5">
-            ${row.map(btn => `
-              <a href="${btn.url}" target="_blank" rel="noopener noreferrer" class="tg-btn">
-                <span>${btn.text}</span>
-                <span class="text-[9px] opacity-60">↗</span>
-              </a>
-            `).join('')}
+            ${row.map(btn => {
+              if (btn.callback_data && btn.callback_data.startsWith('lore:')) {
+                return `
+                  <button onclick="showLoreModal()" class="tg-btn cursor-pointer">
+                    <span>${btn.text}</span>
+                  </button>
+                `;
+              }
+              return `
+                <a href="${btn.url || '#'}" target="_blank" rel="noopener noreferrer" class="tg-btn">
+                  <span>${btn.text}</span>
+                  <span class="text-[9px] opacity-60">↗</span>
+                </a>
+              `;
+            }).join('')}
           </div>
         `;
       }).join('');
@@ -496,6 +505,14 @@
       toast.textContent = `✅ Copied Contract Address: ${text}`;
       toast.classList.remove('hidden');
       setTimeout(() => toast.classList.add('hidden'), 2500);
+    }
+
+    function showLoreModal() {
+      if (!selectedLaunch) return;
+      const loreText = selectedLaunch.lore && selectedLaunch.lore.trim()
+        ? `"${selectedLaunch.lore.trim()}"`
+        : `No custom creator narrative was written on-chain for $${selectedLaunch.symbol}. Deployed via ${selectedLaunch.platformName} (${selectedLaunch.category || 'Uniswap v4'}).`;
+      alert(`📖 TOKEN LORE — ${selectedLaunch.name} ($${selectedLaunch.symbol})\n━━━━━━━━━━━━━━━━━━━━━━\n📋 CA: ${selectedLaunch.address}\n\n📜 Origin & Lore:\n${loreText}`);
     }
 
     async function pollNow() {

@@ -22,7 +22,7 @@ function startServer(port = 3080) {
   // Get live state, recent launches, and formatted Telegram preview for each
   app.get('/api/status', (req, res) => {
     const recentWithPreview = store.state.recentLaunches.slice(0, 50).map((launch) => {
-      const formatted = buildTelegramAlert(launch, store.state.settings);
+      const formatted = buildTelegramAlert(launch, store.state.settings, alertBot.botUsername || '');
       return {
         ...launch,
         telegramPreview: formatted,

@@ -37,29 +37,53 @@ class LaunchScanner {
     this.launchIndependentStream('stockereum', () => store.state.settings.enableStockereum, fetchStockereum);
     this.launchIndependentStream('sender', () => store.state.settings.enableSender, fetchSender);
 
-    // Background Live Volume & MarketCap Updater (ticks every 6 seconds to live-edit active Telegram alerts!)
-    setInterval(() => this.refreshLiveTrackedDexStats(), 6000);
+    // Background Live Volume & MarketCap Updater (ticks every 5 seconds to live-edit active Telegram alerts AND top dashboard tokens!)
+    setInterval(() => this.refreshLiveTrackedDexStats(), 5000);
   }
 
   async refreshLiveTrackedDexStats() {
-    if (!alertBot.liveTrackedAlerts || alertBot.liveTrackedAlerts.size === 0) return;
+    const targetsMap = new Map();
 
-    for (const [trackKey, entry] of alertBot.liveTrackedAlerts.entries()) {
-      if (Date.now() - entry.sentAt > 30 * 60 * 1000) {
-        alertBot.liveTrackedAlerts.delete(trackKey);
-        continue;
+    // 1. Add all active Telegram alert tokens
+    if (alertBot.liveTrackedAlerts && alertBot.liveTrackedAlerts.size > 0) {
+      for (const [trackKey, entry] of alertBot.liveTrackedAlerts.entries()) {
+        if (Date.now() - entry.sentAt > 30 * 60 * 1000) {
+          alertBot.liveTrackedAlerts.delete(trackKey);
+          continue;
+        }
+        targetsMap.set(trackKey, entry.launch);
       }
-      const dexStats = await fetchDexScreenerStats(entry.launch.address);
+    }
+
+    // 2. Also add the top 6 most recent launches in the dashboard so the Web UI also shows real-time Market Cap, Volume, and Buys/Sells!
+    for (const recent of store.state.recentLaunches.slice(0, 6)) {
+      const key = `${recent.platformKey}:${String(recent.address).toLowerCase()}`;
+      if (!targetsMap.has(key)) {
+        targetsMap.set(key, recent);
+      }
+    }
+
+    for (const [, baseLaunch] of targetsMap.entries()) {
+      const dexStats = await fetchDexScreenerStats(baseLaunch.address);
       if (dexStats) {
         const merged = {
-          ...entry.launch,
-          marketCapUsd: dexStats.marketCapUsd ?? entry.launch.marketCapUsd,
-          volumeUsd: dexStats.volumeUsd ?? entry.launch.volumeUsd,
+          ...baseLaunch,
+          image:
+            baseLaunch.image && !baseLaunch.image.includes('programmable-landing-preview')
+              ? baseLaunch.image
+              : dexStats.image || baseLaunch.image,
+          socials: {
+            ...(dexStats.socials || {}),
+            ...(baseLaunch.socials || {}),
+          },
+          marketCapUsd: dexStats.marketCapUsd ?? baseLaunch.marketCapUsd,
+          volumeUsd: dexStats.volumeUsd ?? baseLaunch.volumeUsd,
           priceChange5m: dexStats.priceChange5m,
           buys: dexStats.buys,
           sells: dexStats.sells,
-          trades: dexStats.trades || entry.launch.trades,
+          trades: dexStats.trades || baseLaunch.trades,
           liquidityUsd: dexStats.liquidityUsd,
+          poolQuoteEth: dexStats.poolQuoteEth ?? baseLaunch.poolQuoteEth,
         };
         store.addRecentLaunch(merged, true);
         await alertBot.updateLiveAlertMessages(merged);

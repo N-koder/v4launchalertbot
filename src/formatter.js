@@ -20,9 +20,68 @@ function formatUsd(val) {
 }
 
 /**
+ * Builds the Phanes-style Lore & Token Story card when a user clicks [ 📖 Lore ] or deep-links /start lore_CA
+ */
+function buildLoreMessage(launch) {
+  const name = escapeHtml(launch.name || 'Unknown');
+  const symbol = escapeHtml(launch.symbol || '???');
+  const ca = launch.address;
+  const platformName = escapeHtml(launch.platformName || 'Launchpad');
+
+  const rawLore = (launch.lore || '').trim();
+  const loreBody = rawLore
+    ? `<blockquote>"${escapeHtml(rawLore)}"</blockquote>`
+    : `<blockquote><i>No custom creator narrative was written on-chain for $${symbol}. Deployed via ${platformName} (${escapeHtml(
+        launch.category || 'Uniswap v4'
+      )}).</i></blockquote>`;
+
+  const socialItems = [];
+  if (launch.socials?.website) {
+    socialItems.push(`<a href="${escapeHtml(launch.socials.website)}">🌐 Website</a>`);
+  }
+  if (launch.socials?.twitter) {
+    const tw = launch.socials.twitter.startsWith('http')
+      ? launch.socials.twitter
+      : `https://x.com/${launch.socials.twitter.replace(/^@/, '')}`;
+    socialItems.push(`<a href="${escapeHtml(tw)}">𝕏 Twitter / X</a>`);
+  }
+  if (launch.socials?.telegram) {
+    const tg = launch.socials.telegram.startsWith('http')
+      ? launch.socials.telegram
+      : `https://t.me/${launch.socials.telegram.replace(/^@/, '')}`;
+    socialItems.push(`<a href="${escapeHtml(tg)}">✈️ Telegram</a>`);
+  }
+  socialItems.push(`<a href="${escapeHtml(launch.platformUrl)}">🏛 ${platformName}</a>`);
+
+  return [
+    `📖 <b>TOKEN LORE — ${name} ($${symbol})</b>`,
+    `━━━━━━━━━━━━━━━━━━━━━━`,
+    `📋 <b>CA:</b> <code>${ca}</code>`,
+    ``,
+    `📜 <b>Origin & Lore:</b>`,
+    loreBody,
+    ``,
+    `🧩 <b>Launchpad:</b> ${platformName} (${escapeHtml(launch.category || 'Uni v4')})`,
+    launch.creator
+      ? `👤 <b>Creator Wallet:</b> <a href="https://etherscan.io/address/${launch.creator}">${shortAddr(
+          launch.creator
+        )}</a>`
+      : null,
+    launch.hookAddress
+      ? `🪝 <b>Uniswap v4 Hook:</b> <a href="https://etherscan.io/address/${launch.hookAddress}">${shortAddr(
+          launch.hookAddress
+        )}</a>`
+      : null,
+    `🔗 <b>Links:</b> ${socialItems.join('  •  ')}`,
+  ]
+    .filter((x) => x !== null)
+    .join('\n');
+}
+
+/**
  * Build the HTML message body and inline_keyboard for Telegram
  */
-function buildTelegramAlert(launch, settings = {}) {
+function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   const ca = launch.address;
   const name = escapeHtml(launch.name || 'Unknown');
   const symbol = escapeHtml(launch.symbol || '???');
@@ -40,7 +99,7 @@ function buildTelegramAlert(launch, settings = {}) {
   lines.push(`📋 <b>Contract Address (Tap to Copy):</b>`);
   lines.push(`<code>${ca}</code>`);
   lines.push(``);
-  lines.push(`📊 <b>Launch Details:</b>`);
+  lines.push(`📊 <b>Launch Details (Live):</b>`);
   lines.push(`├ 🧩 <b>Type / Pair:</b> ${escapeHtml(launch.category || launch.quoteSymbol || 'ETH')}`);
 
   if (launch.marketCapUsd !== null && launch.marketCapUsd !== undefined && Number(launch.marketCapUsd) > 0) {
@@ -69,10 +128,13 @@ function buildTelegramAlert(launch, settings = {}) {
     lines.push(`├ 📊 <b>Live Volume (24h):</b> $0.00 (Fresh Launch)`);
   }
 
-  if (launch.buys !== undefined && launch.sells !== undefined && (launch.buys > 0 || launch.sells > 0)) {
-    lines.push(`├ 🔄 <b>Transactions:</b> 🟢 ${launch.buys} Buys  |  🔴 ${launch.sells} Sells`);
-  } else if (launch.trades && Number(launch.trades) > 0) {
-    lines.push(`├ 🔄 <b>Transactions:</b> ${launch.trades} Trades`);
+  const buysCount = launch.buys ?? 0;
+  const sellsCount = launch.sells ?? 0;
+  const totalTrades = launch.trades || buysCount + sellsCount || 0;
+  if (buysCount > 0 || sellsCount > 0) {
+    lines.push(`├ 🔄 <b>Transactions:</b> 🟢 ${buysCount} Buys  |  🔴 ${sellsCount} Sells (${totalTrades} txns)`);
+  } else {
+    lines.push(`├ 🔄 <b>Transactions:</b> ${totalTrades} Trades`);
   }
 
   if (launch.poolQuoteEth !== null && launch.poolQuoteEth !== undefined && Number(launch.poolQuoteEth) > 0) {
@@ -85,6 +147,7 @@ function buildTelegramAlert(launch, settings = {}) {
   } else if (launch.liquidityUsd) {
     lines.push(`├ 💧 <b>Pool Liquidity:</b> ${formatUsd(launch.liquidityUsd)}`);
   }
+
   if (launch.hookAddress) {
     lines.push(
       `├ 🪝 <b>Uni v4 Hook:</b> <a href="https://etherscan.io/address/${launch.hookAddress}">${shortAddr(
@@ -108,32 +171,42 @@ function buildTelegramAlert(launch, settings = {}) {
     : 'Just now';
   lines.push(`└ 🕒 <b>Launched:</b> ${escapeHtml(launchedTime)}`);
 
-  if (launch.description) {
-    const cleanBio = escapeHtml(launch.description).slice(0, 220);
-    lines.push(``);
-    lines.push(`📝 <i>${cleanBio}${launch.description.length > 220 ? '...' : ''}</i>`);
+  // Phanes-style Socials & Lore bar: 🌐 Web | 𝕏 X | ✈️ TG | 📖 Lore
+  const socialBar = [];
+  if (launch.socials?.website) {
+    socialBar.push(`<a href="${escapeHtml(launch.socials.website)}">🌐 Web</a>`);
+  } else {
+    socialBar.push(`<a href="${escapeHtml(launch.platformUrl)}">🌐 Web</a>`);
   }
 
-  // Social links if present
-  const socialLinks = [];
-  if (launch.socials?.website) {
-    socialLinks.push(`<a href="${escapeHtml(launch.socials.website)}">🌐 Website</a>`);
-  }
   if (launch.socials?.twitter) {
     const tw = launch.socials.twitter.startsWith('http')
       ? launch.socials.twitter
       : `https://x.com/${launch.socials.twitter.replace(/^@/, '')}`;
-    socialLinks.push(`<a href="${escapeHtml(tw)}">🐦 X / Twitter</a>`);
+    socialBar.push(`<a href="${escapeHtml(tw)}">𝕏 Twitter</a>`);
+  } else {
+    const searchX = `https://x.com/search?q=${encodeURIComponent(ca)}`;
+    socialBar.push(`<a href="${searchX}">𝕏 Search</a>`);
   }
+
   if (launch.socials?.telegram) {
     const tg = launch.socials.telegram.startsWith('http')
       ? launch.socials.telegram
       : `https://t.me/${launch.socials.telegram.replace(/^@/, '')}`;
-    socialLinks.push(`<a href="${escapeHtml(tg)}">✈️ Telegram</a>`);
+    socialBar.push(`<a href="${escapeHtml(tg)}">✈️ TG</a>`);
   }
-  if (socialLinks.length > 0) {
-    lines.push(``);
-    lines.push(`🔗 <b>Socials:</b> ${socialLinks.join('  |  ')}`);
+
+  const loreDeepLink = botUsername
+    ? `https://t.me/${botUsername}?start=lore_${ca}`
+    : launch.platformUrl;
+  socialBar.push(`<a href="${loreDeepLink}">📖 Lore</a>`);
+
+  lines.push(``);
+  lines.push(`🔗 <b>Links:</b> ${socialBar.join('  •  ')}`);
+
+  if (launch.lore && launch.lore.trim().length > 0) {
+    const cleanLore = escapeHtml(launch.lore.trim()).slice(0, 180);
+    lines.push(`📖 <b>Lore:</b> <i>"${cleanLore}${launch.lore.length > 180 ? '...' : ''}"</i>`);
   }
 
   const caption = lines.join('\n');
@@ -153,6 +226,7 @@ function buildTelegramAlert(launch, settings = {}) {
       ],
       [
         { text: '📈 DexScreener', url: launch.dexScreenerUrl },
+        { text: '📖 Lore', callback_data: `lore:${ca}` },
       ],
     ],
   };
@@ -170,6 +244,7 @@ function buildTelegramAlert(launch, settings = {}) {
 
 module.exports = {
   buildTelegramAlert,
+  buildLoreMessage,
   shortAddr,
   formatUsd,
 };

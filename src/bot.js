@@ -1,6 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const store = require('./store');
-const { buildTelegramAlert } = require('./formatter');
+const { buildTelegramAlert, buildLoreMessage } = require('./formatter');
 
 function escapeHtml(str = '') {
   return String(str)
@@ -231,18 +231,26 @@ class AlertBot {
       );
     });
 
-    // /start — Subscribes user and shows User Menu (plus Admin section ONLY if they are Admin)
-    this.bot.onText(/^\/start/, async (msg) => {
+    // /start — Supports deep-linked Lore (`?start=lore_0x...`) OR subscribes user & shows User Menu
+    this.bot.onText(/^\/start(?:\s+(.+))?/, async (msg, match) => {
       const chatId = msg.chat.id;
       const isUserAdmin = this.isAdmin(msg);
+      const startParam = match && match[1] ? match[1].trim() : '';
 
       const sub = store.upsertSubscriber(chatId, {
         username: msg.from?.username || '',
         firstName: msg.from?.first_name || 'Trader',
         lastName: msg.from?.last_name || '',
-        lastAction: '/start (Subscribed)',
+        lastAction: startParam ? `/start ${startParam}` : '/start (Subscribed)',
         active: true,
       });
+
+      // If user clicked the "📖 Lore" deep link inside an alert!
+      if (startParam.toLowerCase().startsWith('lore_')) {
+        const ca = startParam.slice(5).trim();
+        await this.sendTokenLore(chatId, ca);
+        return;
+      }
 
       const welcomeLines = [
         `🚀 <b>Welcome to Multi-Launchpad Alert Bot!</b>`,
@@ -341,6 +349,17 @@ class AlertBot {
       await this.sendAdminStatusReport(msg.chat.id);
     });
 
+    // /lore <CA> command
+    this.bot.onText(/^\/lore(?:\s+(\S+))?/, async (msg, match) => {
+      const chatId = msg.chat.id;
+      store.recordUserAction(chatId, msg.from, '/lore');
+      const ca = match && match[1] ? match[1].trim() : store.state.recentLaunches[0]?.address;
+      if (!ca) {
+        return this.bot.sendMessage(chatId, 'Usage: <code>/lore 0xTokenAddress</code>', { parse_mode: 'HTML' });
+      }
+      await this.sendTokenLore(chatId, ca);
+    });
+
     // /latest — Available to all users to preview the latest launch
     this.bot.onText(/^\/latest/, async (msg) => {
       const chatId = msg.chat.id;
@@ -407,6 +426,13 @@ class AlertBot {
 
       const isUserAdmin = this.isAdmin(query);
       let sub = store.recordUserAction(chatId, query.from, `Button: ${query.data}`);
+
+      if (query.data && query.data.startsWith('lore:')) {
+        const ca = query.data.slice(5).trim();
+        await this.bot.answerCallbackQuery(query.id, { text: '📖 Loading Token Lore...' });
+        await this.sendTokenLore(chatId, ca);
+        return;
+      }
 
       if (query.data === 'toggle_active') {
         sub = store.setSubscriberActive(chatId, !sub.active);
@@ -537,10 +563,55 @@ class AlertBot {
     await this.bot.sendMessage(chatId, statusMsg, { parse_mode: 'HTML' });
   }
 
+  async sendTokenLore(chatId, ca) {
+    if (!this.bot || !this.isConnected) return;
+    const cleanCa = String(ca).toLowerCase();
+    let launch = store.state.recentLaunches.find((x) => x.address.toLowerCase() === cleanCa);
+
+    // If not in recentLaunches or missing lore, try resolving on-chain / Stockereum metadata on the fly
+    if (!launch || (!launch.lore && (!launch.socials || Object.keys(launch.socials).length === 0))) {
+      const {
+        resolveProgrammableOnChainMetadata,
+        resolveStockereumMeta,
+        fetchDexScreenerStats,
+      } = require('./fetchers');
+
+      const [progMeta, stockMeta, dexStats] = await Promise.all([
+        resolveProgrammableOnChainMetadata(ca, 1),
+        resolveStockereumMeta(ca),
+        fetchDexScreenerStats(ca),
+      ]);
+
+      launch = {
+        platformName: launch?.platformName || 'Ethereum Launchpad',
+        platformUrl: launch?.platformUrl || `https://etherscan.io/token/${ca}`,
+        address: ca,
+        name: launch?.name || 'Token',
+        symbol: launch?.symbol || 'TOKEN',
+        category: launch?.category || 'Uniswap v4',
+        creator: launch?.creator || stockMeta?.creator || null,
+        hookAddress: launch?.hookAddress || stockMeta?.hookAddress || null,
+        lore: launch?.lore || progMeta?.description || stockMeta?.lore || '',
+        socials: {
+          ...(dexStats?.socials || {}),
+          ...(stockMeta?.socials || {}),
+          ...(progMeta?.socials || {}),
+          ...(launch?.socials || {}),
+        },
+      };
+    }
+
+    const loreHtml = buildLoreMessage(launch);
+    await this.bot.sendMessage(chatId, loreHtml, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+  }
+
   async sendToTarget(launch, targetChatId) {
     if (!this.bot || !this.isConnected || !targetChatId) return false;
 
-    const { caption, replyMarkup } = buildTelegramAlert(launch, store.state.settings);
+    const { caption, replyMarkup } = buildTelegramAlert(launch, store.state.settings, this.botUsername);
     const trackKey = `${launch.platformKey}:${String(launch.address).toLowerCase()}`;
 
     const recordMessage = (msgObj, isPhoto) => {
@@ -610,24 +681,49 @@ class AlertBot {
       return;
     }
 
-    // Merge new live stats into the tracked launch WITHOUT overwriting valid stats with null!
+    // Merge new live stats into the tracked launch WITHOUT overwriting valid stats with null or lower trade counts!
     const prev = tracked.launch;
+    const pickPositive = (nextVal, prevVal) => {
+      if (nextVal !== null && nextVal !== undefined && Number(nextVal) > 0) return Number(nextVal);
+      if (prevVal !== null && prevVal !== undefined && Number(prevVal) > 0) return Number(prevVal);
+      return nextVal ?? prevVal ?? null;
+    };
+
     tracked.launch = {
       ...prev,
       ...updatedLaunch,
-      marketCapUsd: updatedLaunch.marketCapUsd ?? prev.marketCapUsd ?? null,
-      volumeUsd: updatedLaunch.volumeUsd ?? prev.volumeUsd ?? null,
-      volumeCoin: updatedLaunch.volumeCoin ?? prev.volumeCoin ?? null,
-      poolQuoteEth: updatedLaunch.poolQuoteEth ?? prev.poolQuoteEth ?? null,
-      liquidityUsd: updatedLaunch.liquidityUsd ?? prev.liquidityUsd ?? null,
+      image:
+        updatedLaunch.image && !updatedLaunch.image.includes('programmable-landing-preview')
+          ? updatedLaunch.image
+          : prev.image || updatedLaunch.image,
+      creator: updatedLaunch.creator || prev.creator || null,
+      hookAddress: updatedLaunch.hookAddress || prev.hookAddress || null,
+      lore: updatedLaunch.lore || prev.lore || '',
+      socials: {
+        ...(prev.socials || {}),
+        ...(updatedLaunch.socials || {}),
+      },
+      marketCapUsd: pickPositive(updatedLaunch.marketCapUsd, prev.marketCapUsd),
+      volumeUsd: Math.max(Number(updatedLaunch.volumeUsd || 0), Number(prev.volumeUsd || 0)) || null,
+      volumeCoin: Math.max(Number(updatedLaunch.volumeCoin || 0), Number(prev.volumeCoin || 0)) || null,
+      poolQuoteEth: pickPositive(updatedLaunch.poolQuoteEth, prev.poolQuoteEth),
+      liquidityUsd: pickPositive(updatedLaunch.liquidityUsd, prev.liquidityUsd),
       priceChange5m: updatedLaunch.priceChange5m ?? prev.priceChange5m ?? null,
-      buys: updatedLaunch.buys ?? prev.buys,
-      sells: updatedLaunch.sells ?? prev.sells,
-      trades: updatedLaunch.trades || prev.trades || 0,
+      buys: Math.max(Number(updatedLaunch.buys || 0), Number(prev.buys || 0)),
+      sells: Math.max(Number(updatedLaunch.sells || 0), Number(prev.sells || 0)),
+      trades: Math.max(Number(updatedLaunch.trades || 0), Number(prev.trades || 0)),
     };
 
-    const { caption, replyMarkup } = buildTelegramAlert(tracked.launch, store.state.settings);
+    const { caption, replyMarkup } = buildTelegramAlert(
+      tracked.launch,
+      store.state.settings,
+      this.botUsername
+    );
     if (caption === tracked.lastCaption) return; // Nothing changed yet
+    // Throttle Telegram message edits to at most once every 3.5s per token for smooth, non-flickering updates
+    const now = Date.now();
+    if (tracked.lastEditedAt && now - tracked.lastEditedAt < 3500) return;
+    tracked.lastEditedAt = now;
     tracked.lastCaption = caption;
 
     await Promise.allSettled(
