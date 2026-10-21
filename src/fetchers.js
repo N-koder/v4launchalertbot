@@ -179,9 +179,12 @@ async function resolveStockereumMeta(tokenAddress) {
 
   try {
     const html = await fetchRawFast(`https://stockereum.com/t/${tokenAddress}`, 2800);
-    const metaMatch = html.match(/\\"metadataUri\\":\\"(\{.*?\})\\"/);
+    const metaMatch = html.match(/\\"metadataUri\\":\\"(\{\\"[\s\S]*?\})\\"/);
     const creatorMatch = html.match(/\\"creator\\":\\"(0x[a-fA-F0-9]{40})\\"/);
     const hookMatch = html.match(/\\"hook\\":\\"(0x[a-fA-F0-9]{40})\\"/);
+    const webMatch = html.match(/\\"web\\":\\"(https?:\/\/[^"\\]+)\\"/);
+    const xMatch = html.match(/\\"x\\":\\"(https?:\/\/[^"\\]+)\\"/);
+    const tgMatch = html.match(/\\"tg\\":\\"(https?:\/\/[^"\\]+)\\"/);
 
     const out = {
       creator: creatorMatch ? creatorMatch[1] : null,
@@ -190,13 +193,19 @@ async function resolveStockereumMeta(tokenAddress) {
       socials: {},
     };
 
+    if (webMatch && webMatch[1]) out.socials.website = webMatch[1].trim();
+    if (xMatch && xMatch[1]) out.socials.twitter = xMatch[1].trim();
+    if (tgMatch && tgMatch[1]) out.socials.telegram = tgMatch[1].trim();
+
     if (metaMatch && metaMatch[1]) {
-      const unescaped = metaMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-      const parsed = JSON.parse(unescaped);
-      if (parsed.description) out.lore = parsed.description.trim();
-      if (parsed.web) out.socials.website = parsed.web.trim();
-      if (parsed.x) out.socials.twitter = parsed.x.trim();
-      if (parsed.tg) out.socials.telegram = parsed.tg.trim();
+      try {
+        const unescaped = metaMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+        const parsed = JSON.parse(unescaped);
+        if (parsed.description) out.lore = parsed.description.trim();
+        if (parsed.web) out.socials.website = parsed.web.trim();
+        if (parsed.x) out.socials.twitter = parsed.x.trim();
+        if (parsed.tg) out.socials.telegram = parsed.tg.trim();
+      } catch {}
     }
 
     stockMetaCache.set(key, out);
