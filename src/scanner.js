@@ -17,13 +17,13 @@ const {
 class LaunchScanner {
   constructor() {
     this.running = false;
-    this.intervalMs = 2000;
+    this.intervalMs = 500;
     this.activeStreams = new Map();
     this.lastLatencyMs = {};
   }
 
-  start(intervalSeconds = 2) {
-    this.intervalMs = Math.max(1000, Math.round(Number(intervalSeconds) * 1000));
+  start(intervalSeconds = 0.5) {
+    this.intervalMs = Math.max(350, Math.round(Number(intervalSeconds) * 1000));
     this.running = true;
     console.log(
       `[Scanner] ⚡ ULTRA-FAST STREAM ENGINE ACTIVE (Polling each launchpad independently every ${this.intervalMs}ms with Keep-Alive TLS)`
@@ -112,7 +112,7 @@ class LaunchScanner {
         store.state.stats.errors = (store.state.stats.errors || 0) + 1;
       } finally {
         const elapsed = Date.now() - t0;
-        const nextDelay = Math.max(400, this.intervalMs - elapsed);
+        const nextDelay = Math.max(100, this.intervalMs - elapsed);
         setTimeout(loop, nextDelay);
       }
     };
@@ -169,15 +169,26 @@ class LaunchScanner {
             `[Scanner] ⚡ INSTANT LAUNCH DETECTED on ${launch.platformName} (${detectLagMs}ms): ${launch.name} ($${launch.symbol}) -> ${launch.address}`
           );
 
-          // Mark seen and save to dashboard immediately, then dispatch Telegram alert with automatic retry!
+          // Mark seen and save to dashboard immediately
           store.markSeen(platformKey, launch.address);
           store.addRecentLaunch(launch, false);
 
-          fetchDexScreenerStats(launch.address)
-            .catch(() => null)
-            .then(async (dex) => {
-              const enriched = dex
-                ? {
+          // ⚡ ZERO-LATENCY INSTANT DISPATCH (0ms delay!)
+          // Send the alert IMMEDIATELY so our bot beats competitors like @sendtrench!
+          (async () => {
+            let sent = await alertBot.sendLaunchAlert(launch);
+            if (!sent) {
+              await new Promise((r) => setTimeout(r, 2000));
+              sent = await alertBot.sendLaunchAlert(launch);
+            }
+            store.addRecentLaunch(launch, sent);
+            if (sent) store.incrementAlertStat(platformKey);
+
+            // In background, query DexScreener to enrich live alert message with volume & market cap once indexed
+            fetchDexScreenerStats(launch.address)
+              .then((dex) => {
+                if (dex) {
+                  const enriched = {
                     ...launch,
                     marketCapUsd: dex.marketCapUsd ?? launch.marketCapUsd,
                     volumeUsd: dex.volumeUsd ?? launch.volumeUsd,
@@ -187,19 +198,13 @@ class LaunchScanner {
                     trades: dex.trades || launch.trades,
                     liquidityUsd: dex.liquidityUsd,
                     poolQuoteEth: dex.poolQuoteEth ?? launch.poolQuoteEth,
-                  }
-                : launch;
-
-              let sent = await alertBot.sendLaunchAlert(enriched);
-              if (!sent) {
-                // Retry once after 3 seconds in case of temporary Telegram rate limit or network blip
-                await new Promise((r) => setTimeout(r, 3000));
-                sent = await alertBot.sendLaunchAlert(enriched);
-              }
-              store.addRecentLaunch(enriched, sent);
-              if (sent) store.incrementAlertStat(platformKey);
-            })
-            .catch((e) => console.error('[Scanner] Alert dispatch error:', e.message));
+                  };
+                  store.addRecentLaunch(enriched, true);
+                  alertBot.updateLiveAlertMessages(enriched).catch(() => {});
+                }
+              })
+              .catch(() => {});
+          })().catch((e) => console.error('[Scanner] Alert dispatch error:', e.message));
         }
       }
     }

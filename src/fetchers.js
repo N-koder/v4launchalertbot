@@ -1,4 +1,5 @@
 const https = require('https');
+const zlib = require('zlib');
 
 // Persistent HTTP/1.1 Keep-Alive Agent — eliminates TCP & TLS handshake latency on every poll!
 const keepAliveAgent = new https.Agent({
@@ -13,6 +14,7 @@ const HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   Accept: 'application/json, text/plain, */*',
+  'Accept-Encoding': 'gzip, deflate, br',
   'Cache-Control': 'no-cache, no-store, must-revalidate',
   Pragma: 'no-cache',
   Connection: 'keep-alive',
@@ -35,7 +37,21 @@ function fetchRawFast(urlStr, timeoutMs = 4500) {
         const chunks = [];
         res.on('data', (chunk) => chunks.push(chunk));
         res.on('end', () => {
-          resolve(Buffer.concat(chunks).toString('utf8'));
+          const buffer = Buffer.concat(chunks);
+          const enc = res.headers['content-encoding'];
+          try {
+            if (enc === 'br') {
+              resolve(zlib.brotliDecompressSync(buffer).toString('utf8'));
+            } else if (enc === 'gzip') {
+              resolve(zlib.gunzipSync(buffer).toString('utf8'));
+            } else if (enc === 'deflate') {
+              resolve(zlib.inflateSync(buffer).toString('utf8'));
+            } else {
+              resolve(buffer.toString('utf8'));
+            }
+          } catch (decompErr) {
+            reject(decompErr);
+          }
         });
       }
     );
@@ -228,9 +244,13 @@ async function fetchProgrammableEthereum() {
   const items = data.items.filter((item) => item && item.tokenAddress);
   const topAddresses = new Set(items.slice(0, 8).map((x) => x.tokenAddress.toLowerCase()));
 
-  await Promise.allSettled(
-    items.slice(0, 8).map((item) => resolveProgrammableOnChainMetadata(item.tokenAddress, 1))
-  );
+  // Trigger on-chain metadata resolution in background without blocking this poll cycle
+  items.slice(0, 8).forEach((item) => {
+    const key = `1:${item.tokenAddress.toLowerCase()}`;
+    if (!progMetaCache.has(key)) {
+      resolveProgrammableOnChainMetadata(item.tokenAddress, 1).catch(() => {});
+    }
+  });
 
   return items.map((item) => {
     const launchedAtMs = item.launchedAt ? new Date(item.launchedAt).getTime() : Date.now();
@@ -289,9 +309,13 @@ async function fetchProgrammableRobinhood() {
   if (!data || !Array.isArray(data.items)) return [];
 
   const items = data.items.filter((item) => item && item.tokenAddress);
-  await Promise.allSettled(
-    items.slice(0, 5).map((item) => resolveProgrammableOnChainMetadata(item.tokenAddress, 4663))
-  );
+  // Trigger on-chain metadata resolution in background without blocking this poll cycle
+  items.slice(0, 5).forEach((item) => {
+    const key = `4663:${item.tokenAddress.toLowerCase()}`;
+    if (!progMetaCache.has(key)) {
+      resolveProgrammableOnChainMetadata(item.tokenAddress, 4663).catch(() => {});
+    }
+  });
 
   return items.map((item) => {
     const launchedAtMs = item.launchedAt ? new Date(item.launchedAt).getTime() : Date.now();
@@ -352,8 +376,12 @@ async function fetchStockereum() {
     .filter((item) => item && item.token)
     .sort((a, b) => (b.openedAt || 0) - (a.openedAt || 0));
 
-  // Resolve off-chain lore, creator & socials for the 6 newest Stockereum tokens in parallel
-  await Promise.allSettled(sorted.slice(0, 6).map((item) => resolveStockereumMeta(item.token)));
+  // Trigger off-chain metadata resolution in background without blocking this poll cycle
+  sorted.slice(0, 6).forEach((item) => {
+    if (!stockMetaCache.has(String(item.token).toLowerCase())) {
+      resolveStockereumMeta(item.token).catch(() => {});
+    }
+  });
 
   return sorted.map((item) => {
     const launchedAtMs = item.openedAt ? item.openedAt * 1000 : Date.now();
@@ -440,14 +468,14 @@ async function fetchSender() {
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     .slice(0, 10);
 
-  const results = await Promise.all(
-    newest.map(async (item) => {
-      let image = item.image || null;
-      let bio = '';
-      const socials = {};
+  const results = newest.map((item) => {
+    let image = item.image || null;
+    let bio = '';
+    const socials = {};
 
-      if (item.description && item.description.startsWith('http')) {
-        const meta = await resolveSenderMeta(item.description);
+    if (item.description && item.description.startsWith('http')) {
+      if (senderMetaCache.has(item.description)) {
+        const meta = senderMetaCache.get(item.description);
         if (meta) {
           if (meta.image) image = meta.image;
           if (meta.description) bio = meta.description.trim();
@@ -455,9 +483,13 @@ async function fetchSender() {
           if (meta.telegram) socials.telegram = meta.telegram.trim();
           if (meta.website) socials.website = meta.website.trim();
         }
-      } else if (item.description) {
-        bio = item.description.trim();
+      } else {
+        // Trigger background resolution so future live-edits have full bio
+        resolveSenderMeta(item.description).catch(() => {});
       }
+    } else if (item.description) {
+      bio = item.description.trim();
+    }
 
       const launchedAtMs = item.createdAt ? item.createdAt * 1000 : Date.now();
       const mcapUsd =
@@ -497,8 +529,7 @@ async function fetchSender() {
         dexToolsUrl: `https://www.dextools.io/app/en/ether/pair-explorer/${item.address}`,
         launchedAtMs,
       };
-    })
-  );
+    });
 
   return results;
 }
@@ -563,7 +594,7 @@ async function fetchEtherStreet() {
   const url = 'https://etherstreet.fun/api/launched-tokens?limit=15&offset=0';
   let list;
   try {
-    list = await fetchJsonFast(url, 4000);
+    list = await fetchJsonFast(url, 6000);
   } catch (err) {
     console.warn('[EtherStreet] API fetch error:', err.message);
     return [];
@@ -571,14 +602,14 @@ async function fetchEtherStreet() {
 
   if (!Array.isArray(list) || list.length === 0) return [];
 
-  const results = await Promise.all(
-    list.map(async (item) => {
-      let image = null;
-      let bio = '';
-      const socials = {};
+  const results = list.map((item) => {
+    let image = null;
+    let bio = '';
+    const socials = {};
 
-      if (item.metadataURI) {
-        const meta = await resolveEtherStreetMeta(item.metadataURI);
+    if (item.metadataURI) {
+      if (etherstreetMetaCache.has(item.metadataURI)) {
+        const meta = etherstreetMetaCache.get(item.metadataURI);
         if (meta) {
           if (meta.image) image = meta.image;
           if (meta.description) bio = meta.description;
@@ -586,7 +617,11 @@ async function fetchEtherStreet() {
           if (meta.socials?.twitter) socials.twitter = meta.socials.twitter;
           if (meta.socials?.telegram) socials.telegram = meta.socials.telegram;
         }
+      } else {
+        // Resolve IPFS metadata in background without blocking this poll cycle
+        resolveEtherStreetMeta(item.metadataURI).catch(() => {});
       }
+    }
 
       const launchedAtMs = item.launchedAt ? item.launchedAt * 1000 : Date.now();
       const mcapUsd = item.gt?.fdvUsd && item.gt.fdvUsd > 0 ? item.gt.fdvUsd : null;
@@ -632,8 +667,7 @@ async function fetchEtherStreet() {
         launchedAtMs,
         blockNumber: item.launchBlock ? Number(item.launchBlock) : null,
       };
-    })
-  );
+    });
 
   return results;
 }

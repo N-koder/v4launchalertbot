@@ -30,7 +30,15 @@ class AlertBot {
     }
 
     try {
-      this.bot = new TelegramBot(token.trim(), { polling: true });
+      this.bot = new TelegramBot(token.trim(), {
+        polling: true,
+        request: {
+          agentOptions: {
+            keepAlive: true,
+            keepAliveMsecs: 30000,
+          },
+        },
+      });
       const me = await this.bot.getMe();
       this.isConnected = true;
       this.botUsername = me.username;
@@ -652,14 +660,20 @@ class AlertBot {
             ? `https://wsrv.nl/?url=${encodeURIComponent(launch.image)}&output=jpg`
             : launch.image;
 
-          sentMsg = await this.bot.sendPhoto(targetChatId, photoUrl, {
-            caption,
-            parse_mode: 'HTML',
-            reply_markup: replyMarkup,
-          });
+          // Race sendPhoto against a 1200ms timer so slow external image hosts never delay message delivery
+          sentMsg = await Promise.race([
+            this.bot.sendPhoto(targetChatId, photoUrl, {
+              caption,
+              parse_mode: 'HTML',
+              reply_markup: replyMarkup,
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Photo download timed out (>1200ms)')), 1200)
+            ),
+          ]);
           sentAsPhoto = true;
         } catch (photoErr) {
-          console.warn(`[TelegramBot] Photo send failed for ${launch.symbol} (${photoErr.message}), falling back to text.`);
+          // Fall back to instant text message
         }
       }
 
