@@ -503,8 +503,143 @@ async function fetchSender() {
   return results;
 }
 
+const etherstreetMetaCache = new Map();
+
+async function resolveEtherStreetMeta(metadataURI) {
+  if (!metadataURI) return null;
+  const cleanUri = String(metadataURI).trim();
+  if (etherstreetMetaCache.has(cleanUri)) {
+    return etherstreetMetaCache.get(cleanUri);
+  }
+
+  let hash = cleanUri;
+  if (hash.startsWith('ipfs://')) {
+    hash = hash.replace('ipfs://', '');
+  }
+  if (hash.startsWith('/ipfs/')) {
+    hash = hash.replace('/ipfs/', '');
+  }
+
+  const gateways = [
+    `https://ipfs.filebase.io/ipfs/${hash}`,
+    `https://ipfs.io/ipfs/${hash}`,
+  ];
+
+  for (const gw of gateways) {
+    try {
+      const data = await fetchJsonFast(gw, 3500);
+      if (data && typeof data === 'object') {
+        let image = data.image || null;
+        if (image && image.startsWith('ipfs://')) {
+          image = `https://ipfs.filebase.io/ipfs/${image.replace('ipfs://', '')}`;
+        }
+
+        const socials = {};
+        if (data.external_url) socials.website = data.external_url.trim();
+        if (data.twitter) socials.twitter = data.twitter.trim();
+        if (data.telegram) socials.telegram = data.telegram.trim();
+
+        const result = {
+          description: data.description ? data.description.trim() : '',
+          image,
+          socials,
+        };
+        etherstreetMetaCache.set(cleanUri, result);
+        return result;
+      }
+    } catch {
+      // Try next gateway
+    }
+  }
+
+  return null;
+}
+
 /**
- * 4. Fetch live real-time Market Cap, Volume, Price Change, Buys/Sells AND Socials from DexScreener API
+ * 4. EtherStreet.fun Uniswap v4 Launches (Ethereum Mainnet)
+ * API: https://etherstreet.fun/api/launched-tokens?limit=15&offset=0
+ */
+async function fetchEtherStreet() {
+  const url = 'https://etherstreet.fun/api/launched-tokens?limit=15&offset=0';
+  let list;
+  try {
+    list = await fetchJsonFast(url, 4000);
+  } catch (err) {
+    console.warn('[EtherStreet] API fetch error:', err.message);
+    return [];
+  }
+
+  if (!Array.isArray(list) || list.length === 0) return [];
+
+  const results = await Promise.all(
+    list.map(async (item) => {
+      let image = null;
+      let bio = '';
+      const socials = {};
+
+      if (item.metadataURI) {
+        const meta = await resolveEtherStreetMeta(item.metadataURI);
+        if (meta) {
+          if (meta.image) image = meta.image;
+          if (meta.description) bio = meta.description;
+          if (meta.socials?.website) socials.website = meta.socials.website;
+          if (meta.socials?.twitter) socials.twitter = meta.socials.twitter;
+          if (meta.socials?.telegram) socials.telegram = meta.socials.telegram;
+        }
+      }
+
+      const launchedAtMs = item.launchedAt ? item.launchedAt * 1000 : Date.now();
+      const mcapUsd = item.gt?.fdvUsd && item.gt.fdvUsd > 0 ? item.gt.fdvUsd : null;
+      const volUsd = item.gt?.volume24Usd || item.market?.volumeUsd || null;
+      const buys = item.market?.buys ?? 0;
+      const sells = item.market?.sells ?? 0;
+      const trades = (item.market?.swaps ?? item.gt?.txns24) || buys + sells || 0;
+
+      return {
+        platformKey: 'etherstreet',
+        platformName: 'EtherStreet.fun',
+        platformBadge: '🟠 ETHERSTREET',
+        platformColor: '#f97316',
+        chainName: 'Ethereum Mainnet (Uni v4)',
+        chainId: 1,
+        address: item.address,
+        name: item.name || 'Unknown',
+        symbol: item.symbol || '???',
+        image: image || 'https://etherstreet.fun/favicon.ico',
+        creator: item.deployer || null,
+        poolId: item.poolId || null,
+        category: `EtherStreet (${item.quoteSymbol || 'ETH'})`,
+        quoteSymbol: item.quoteSymbol || 'ETH',
+        quoteKind: 'Uniswap v4',
+        metadataURI: item.metadataURI || null,
+        marketCapUsd: mcapUsd,
+        volumeUsd: volUsd,
+        volumeCoin: item.volume24Eth ?? null,
+        poolQuoteEth: item.quoteSideEth ?? null,
+        holders: item.rewards?.holders ?? 0,
+        graduated: false,
+        buys,
+        sells,
+        trades,
+        lore: bio,
+        description:
+          bio || `Uniswap v4 token launch on EtherStreet.fun paired with ${item.quoteSymbol || 'ETH'}`,
+        socials,
+        platformUrl: `https://etherstreet.fun/#/token/${String(item.address).toLowerCase()}`,
+        explorerUrl: `https://etherscan.io/token/${item.address}`,
+        dexScreenerUrl: `https://dexscreener.com/ethereum/${item.address}`,
+        dexToolsUrl: `https://www.dextools.io/app/en/ether/pair-explorer/${item.address}`,
+        launchedAtMs,
+        blockNumber: item.launchBlock ? Number(item.launchBlock) : null,
+      };
+    })
+  );
+
+  return results;
+}
+
+/**
+ * 5. Fetch live real-time Market Cap, Volume, Price Change, Buys/Sells AND Socials from DexScreener API
  */
 async function fetchDexScreenerStats(tokenAddress) {
   try {
@@ -556,7 +691,9 @@ module.exports = {
   fetchProgrammableRobinhood,
   fetchStockereum,
   fetchSender,
+  fetchEtherStreet,
   fetchDexScreenerStats,
   resolveProgrammableOnChainMetadata,
   resolveStockereumMeta,
+  resolveEtherStreetMeta,
 };

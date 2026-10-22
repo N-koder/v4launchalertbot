@@ -3,17 +3,19 @@ const {
   fetchProgrammableRobinhood,
   fetchStockereum,
   fetchSender,
+  fetchEtherStreet,
 } = require('./fetchers');
 const { buildTelegramAlert } = require('./formatter');
 
 async function testAll() {
-  console.log('Testing live APIs for all 3 launchpads...\n');
+  console.log('Testing live APIs for all 4 launchpads...\n');
 
-  const [progEth, progRh, stock, sender] = await Promise.all([
+  const [progEth, progRh, stock, sender, etherstreet] = await Promise.all([
     fetchProgrammableEthereum(),
     fetchProgrammableRobinhood(),
     fetchStockereum(),
     fetchSender(),
+    fetchEtherStreet(),
   ]);
 
   console.log(`✅ Programmable (ETH): ${progEth.length} recent launches fetched`);
@@ -36,9 +38,14 @@ async function testAll() {
     console.log(`   Newest: ${sender[0].name} ($${sender[0].symbol}) -> CA: ${sender[0].address}`);
   }
 
-  if (stock[0]) {
-    console.log('\n--- SAMPLE TELEGRAM ALERT CAPTION ---');
-    const preview = buildTelegramAlert(stock[0]);
+  console.log(`✅ EtherStreet.fun: ${etherstreet.length} recent launches fetched`);
+  if (etherstreet[0]) {
+    console.log(`   Newest: ${etherstreet[0].name} ($${etherstreet[0].symbol}) [${etherstreet[0].category}] -> CA: ${etherstreet[0].address}`);
+  }
+
+  if (etherstreet[0]) {
+    console.log('\n--- SAMPLE ETHERSTREET TELEGRAM ALERT CAPTION ---');
+    const preview = buildTelegramAlert(etherstreet[0]);
     console.log(preview.caption);
     console.log('\n--- SAMPLE INLINE BUTTONS ---');
     preview.replyMarkup.inline_keyboard.forEach((row, i) => {

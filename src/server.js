@@ -63,6 +63,7 @@ function startServer(port = 3080) {
       'enableProgrammableRobinhood',
       'enableStockereum',
       'enableSender',
+      'enableEtherStreet',
     ];
     const update = {};
     for (const key of allowed) {

@@ -5,6 +5,7 @@ const {
   fetchProgrammableRobinhood,
   fetchStockereum,
   fetchSender,
+  fetchEtherStreet,
   fetchDexScreenerStats,
 } = require('./fetchers');
 
@@ -36,6 +37,11 @@ class LaunchScanner {
     );
     this.launchIndependentStream('stockereum', () => store.state.settings.enableStockereum, fetchStockereum);
     this.launchIndependentStream('sender', () => store.state.settings.enableSender, fetchSender);
+    this.launchIndependentStream(
+      'etherstreet',
+      () => store.state.settings.enableEtherStreet,
+      fetchEtherStreet
+    );
 
     // Background Live Volume & MarketCap Updater (ticks every 5 seconds to live-edit active Telegram alerts AND top dashboard tokens!)
     setInterval(() => this.refreshLiveTrackedDexStats(), 5000);
@@ -121,6 +127,7 @@ class LaunchScanner {
       tasks.push(this.processPlatform('programmable_robinhood', fetchProgrammableRobinhood));
     if (settings.enableStockereum) tasks.push(this.processPlatform('stockereum', fetchStockereum));
     if (settings.enableSender) tasks.push(this.processPlatform('sender', fetchSender));
+    if (settings.enableEtherStreet) tasks.push(this.processPlatform('etherstreet', fetchEtherStreet));
     await Promise.allSettled(tasks);
     store.state.stats.lastPollAt = Date.now();
   }
