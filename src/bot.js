@@ -684,7 +684,7 @@ class AlertBot {
             ? `https://wsrv.nl/?url=${encodeURIComponent(launch.image)}&output=jpg`
             : launch.image;
 
-          // Race sendPhoto against a tight 700ms timer so slow external image hosts NEVER delay message delivery!
+          // Race sendPhoto against a generous 2500ms timer so Telegram has time to download real token images
           sentMsg = await Promise.race([
             this.bot.sendPhoto(targetChatId, photoUrl, {
               caption,
@@ -692,7 +692,7 @@ class AlertBot {
               reply_markup: replyMarkup,
             }),
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Photo download timed out (>700ms)')), 700)
+              setTimeout(() => reject(new Error('Photo download timed out (>2500ms)')), 2500)
             ),
           ]);
           sentAsPhoto = true;

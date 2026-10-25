@@ -99,25 +99,29 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   };
 
   const lines = [];
-  lines.push(`<b>${name}</b> (<code>$${symbol}</code>) · <a href="${launch.platformUrl}">${platformName}</a>`);
-  lines.push(`━━━━━━━━━━━━━━━━━━━━`);
+  lines.push(`⚡️ <b>NEW LAUNCH</b> | <b>${name}</b> (<code>$${symbol}</code>)`);
+  lines.push(`━━━━━━━━━━━━━━━━━━━━━━`);
+  lines.push(`🏛 <b>Platform:</b> <a href="${launch.platformUrl}">${platformName}</a>`);
 
   if (isPangea) {
+    lines.push(``);
     if (launch.isSameEvmAddress) {
-      lines.push(`CA    <code>${ca}</code>  <a href="${makeMaestroUrl(ca)}">[Maestro]</a>`);
+      lines.push(`📋 <b>Universal CA:</b> <code>${ca}</code>  <a href="${makeMaestroUrl(ca)}">[Maestro]</a>`);
       lines.push(`<i>Omnichain: ETH · Base · BSC · Robinhood</i>`);
       if (launch.solanaAddress && launch.solanaAddress !== ca) {
-        lines.push(`SOL   <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
+        lines.push(`🟣 <b>SOL:</b> <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
       }
     } else {
-      if (launch.ethAddress) lines.push(`ETH   <code>${launch.ethAddress}</code>  <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
-      if (launch.baseAddress) lines.push(`BASE  <code>${launch.baseAddress}</code>  <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
-      if (launch.bscAddress) lines.push(`BSC   <code>${launch.bscAddress}</code>  <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
-      if (launch.rhAddress) lines.push(`RH    <code>${launch.rhAddress}</code>  <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
-      if (launch.solanaAddress) lines.push(`SOL   <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
+      lines.push(`📋 <b>Contract Addresses & Fast Sniping:</b>`);
+      if (launch.ethAddress) lines.push(`🔷 <b>ETH</b>   <code>${launch.ethAddress}</code>  <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
+      if (launch.baseAddress) lines.push(`🔹 <b>BASE</b>  <code>${launch.baseAddress}</code>  <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
+      if (launch.bscAddress) lines.push(`🔸 <b>BSC</b>   <code>${launch.bscAddress}</code>  <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
+      if (launch.rhAddress) lines.push(`🟣 <b>RH</b>    <code>${launch.rhAddress}</code>  <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
+      if (launch.solanaAddress) lines.push(`🟣 <b>SOL</b>   <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
     }
   } else {
-    lines.push(`CA    <code>${ca}</code>  <a href="${makeMaestroUrl(ca)}">[Maestro]</a>`);
+    lines.push(``);
+    lines.push(`📋 <b>Contract:</b> <code>${ca}</code>  <a href="${makeMaestroUrl(ca)}">[Maestro]</a>`);
   }
 
   lines.push(``);
@@ -136,12 +140,12 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   const sellsCount = launch.sells ?? 0;
   const totalTrades = launch.trades || buysCount + sellsCount || 0;
   if (totalTrades > 0) {
-    metrics.push(`Trades: <b>${totalTrades}</b>`);
+    metrics.push(`Txns: <b>${totalTrades}</b>`);
   }
   if (!isPangea && launch.chainName) {
     metrics.push(`Chain: <b>${escapeHtml(chainName.replace(/\s*\(.*\)/, ''))}</b>`);
   }
-  lines.push(metrics.join(' · '));
+  lines.push(`📊 <b>Stats:</b> ${metrics.join('  •  ')}`);
 
   // Clean Links Bar
   const links = [];
@@ -155,9 +159,9 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
     const tw = launch.socials.twitter.startsWith('http')
       ? launch.socials.twitter
       : `https://x.com/${launch.socials.twitter.replace(/^@/, '')}`;
-    links.push(`<a href="${escapeHtml(tw)}">Twitter</a>`);
+    links.push(`<a href="${escapeHtml(tw)}">𝕏 Twitter</a>`);
   } else {
-    links.push(`<a href="https://x.com/search?q=${encodeURIComponent(ca)}">Twitter</a>`);
+    links.push(`<a href="https://x.com/search?q=${encodeURIComponent(ca)}">𝕏 Twitter</a>`);
   }
 
   if (launch.socials?.telegram) {
@@ -171,7 +175,7 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
     links.push(`<a href="${escapeHtml(launch.dexScreenerUrl)}">DexScreener</a>`);
   }
 
-  lines.push(links.join(' · '));
+  lines.push(`🔗 <b>Links:</b> ${links.join('  •  ')}`);
 
   if (launch.lore && launch.lore.trim().length > 0) {
     const cleanLore = escapeHtml(launch.lore.trim()).slice(0, 140);
@@ -188,13 +192,13 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   const replyMarkup = {
     inline_keyboard: [
       [
-        { text: 'Maestro', url: maestroUrl },
-        { text: 'Sigma', url: sigmaUrl },
+        { text: '⚡ Maestro', url: maestroUrl },
+        { text: '∑ Sigma', url: sigmaUrl },
       ],
       [
-        { text: 'DexScreener', url: launch.dexScreenerUrl },
+        { text: '📈 DexScreener', url: launch.dexScreenerUrl },
         {
-          text: isPangea ? 'Pangea App' : 'Platform App',
+          text: isPangea ? '🏛 Pangea App' : '🏛 App',
           url: launch.platformUrl,
         },
       ],
