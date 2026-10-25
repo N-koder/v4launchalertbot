@@ -203,13 +203,13 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   const replyMarkup = {
     inline_keyboard: [
       [
-        { text: '⚡ Maestro ↗', url: maestroUrl },
-        { text: '∑ Sigma ↗', url: sigmaUrl },
+        { text: '⚡ Maestro', url: maestroUrl },
+        { text: '∑ Sigma', url: sigmaUrl },
       ],
       [
-        { text: '📈 DexScreener ↗', url: launch.dexScreenerUrl },
+        { text: '📈 DexScreener', url: launch.dexScreenerUrl },
         {
-          text: isPangea ? '🏛 Pangea App ↗' : '🏛 App ↗',
+          text: isPangea ? '🏛 Pangea App' : '🏛 App',
           url: launch.platformUrl,
         },
       ],
