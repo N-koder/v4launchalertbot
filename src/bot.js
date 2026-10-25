@@ -119,7 +119,7 @@ class AlertBot {
     const userCommands = [
       { command: 'start', description: '🚀 Activate personal launch alerts' },
       { command: 'help', description: '📖 Show help & available commands' },
-      { command: 'settings', description: '⚙️ Filter launchpads (Programmable, Stockereum, Sender, EtherStreet)' },
+      { command: 'settings', description: '⚙️ Filter launchpads (Programmable, Stockereum, Sender, EtherStreet, Pangea)' },
       { command: 'latest', description: '🔥 View the newest detected token launch' },
       { command: 'stop', description: '🔕 Pause personal launch alerts' },
     ];
@@ -153,6 +153,7 @@ class AlertBot {
     const sOn = sub?.platforms?.stockereum !== false;
     const fOn = sub?.platforms?.sender !== false;
     const eOn = sub?.platforms?.etherstreet !== false;
+    const panOn = sub?.platforms?.pangea !== false;
 
     const rows = [
       [
@@ -170,6 +171,7 @@ class AlertBot {
         { text: `🟠 EtherStreet: ${eOn ? '✅ ON' : '❌ OFF'}`, callback_data: 'toggle_etherstreet' },
       ],
       [
+        { text: `🌐 Pangea: ${panOn ? '✅ ON' : '❌ OFF'}`, callback_data: 'toggle_pangea' },
         { text: '🔥 Latest Launch', callback_data: 'preview_latest' },
       ],
       [{ text: '📖 Help & Commands', callback_data: 'show_help' }],
@@ -190,13 +192,14 @@ class AlertBot {
     const userSection = [
       `📖 <b>Launch Alert Bot — Help & Commands</b>`,
       `━━━━━━━━━━━━━━━━━━━━━━`,
-      `This bot monitors <b>4 Ethereum / Uniswap v4 Launchpads</b> in real-time and sends you instant alerts with a <b>1-tap copiable Contract Address (CA)</b> and <b>1-click trading buttons</b> (Maestro, Sigma Bot, DexScreener).`,
+      `This bot monitors <b>5 Ethereum / Uniswap v4 Launchpads</b> in real-time and sends you instant alerts with a <b>1-tap copiable Contract Address (CA)</b> and <b>1-click trading buttons</b> (Maestro, Sigma Bot, DexScreener).`,
       ``,
       `🏛 <b>Supported Launchpads:</b>`,
       `• 🟣 <b>Programmable.market</b> (ETH & Robinhood Chain)`,
       `• 🟢 <b>Stockereum.com</b> (RWA Stock, Meme & Crypto Pairs)`,
       `• 🔵 <b>Sender.family</b> (Uniswap v4 Locked Liquidity)`,
       `• 🟠 <b>EtherStreet.fun</b> (Uniswap v4 Token Launches)`,
+      `• 🌐 <b>Pangea.trade</b> (Omnichain Uniswap v4 Launches)`,
       ``,
       `👤 <b>User Commands:</b>`,
       `• /start — Activate your personal DM launch alerts`,
@@ -269,7 +272,7 @@ class AlertBot {
         `🚀 <b>Welcome to Multi-Launchpad Alert Bot!</b>`,
         ``,
         `✅ <b>Your Personal DM Alerts are now ACTIVE!</b>`,
-        `Whenever a new token launches on <b>Programmable</b>, <b>Stockereum</b>, <b>Sender.family</b>, or <b>EtherStreet</b>, you will receive an instant alert right here with a <b>1-tap copiable CA</b> and <b>1-click Maestro / Sigma / DexScreener buttons</b>.`,
+        `Whenever a new token launches on <b>Programmable</b>, <b>Stockereum</b>, <b>Sender.family</b>, <b>EtherStreet</b>, or <b>Pangea</b>, you will receive an instant alert right here with a <b>1-tap copiable CA</b> and <b>1-click Maestro / Sigma / DexScreener buttons</b>.`,
         ``,
         `👤 <b>Quick Commands:</b>`,
         `• /help — How to use & command list`,
@@ -457,6 +460,8 @@ class AlertBot {
         sub = store.toggleSubscriberPlatform(chatId, 'sender');
       } else if (query.data === 'toggle_etherstreet') {
         sub = store.toggleSubscriberPlatform(chatId, 'etherstreet');
+      } else if (query.data === 'toggle_pangea') {
+        sub = store.toggleSubscriberPlatform(chatId, 'pangea');
       } else if (query.data === 'preview_latest') {
         await this.bot.answerCallbackQuery(query.id, { text: 'Sending latest launch...' });
         const latest = store.state.recentLaunches[0];
@@ -523,13 +528,14 @@ class AlertBot {
       const uname = u.username ? `@${escapeHtml(u.username)}` : '<i>No @username</i>';
       const fullName = escapeHtml(`${u.firstName || ''} ${u.lastName || ''}`.trim() || 'User');
       const statusIcon = u.active ? '🟢 Active' : '🔕 Paused';
-      const p = u.platforms || { programmable: true, stockereum: true, sender: true, etherstreet: true };
+      const p = u.platforms || { programmable: true, stockereum: true, sender: true, etherstreet: true, pangea: true };
       const filters =
         [
           p.programmable !== false ? '🟣Prog' : '',
           p.stockereum !== false ? '🟢Stock' : '',
           p.sender !== false ? '🔵Sender' : '',
           p.etherstreet !== false ? '🟠EtherStreet' : '',
+          p.pangea !== false ? '🌐Pangea' : '',
         ]
           .filter(Boolean)
           .join(', ') || 'None';
@@ -572,6 +578,7 @@ class AlertBot {
       `• 🟢 Stockereum: ${settings.enableStockereum ? '✅ ON' : '❌ OFF'} (${lats.stockereum || '--'}ms)`,
       `• 🔵 Sender.family: ${settings.enableSender ? '✅ ON' : '❌ OFF'} (${lats.sender || '--'}ms)`,
       `• 🟠 EtherStreet: ${settings.enableEtherStreet ? '✅ ON' : '❌ OFF'} (${lats.etherstreet || '--'}ms)`,
+      `• 🌐 Pangea.trade: ${settings.enablePangea ? '✅ ON' : '❌ OFF'} (${lats.pangea || '--'}ms)`,
       ``,
       `📊 <b>Alerts Broadcasted:</b> ${stats.totalAlertsSent}`,
       `• Tracked CAs in DB: ${Object.keys(store.state.seenTokens).length}`,
@@ -590,14 +597,20 @@ class AlertBot {
       const {
         resolveProgrammableOnChainMetadata,
         resolveStockereumMeta,
+        resolveEtherStreetMeta,
+        resolvePangeaMeta,
         fetchDexScreenerStats,
       } = require('./fetchers');
 
-      const [progMeta, stockMeta, dexStats] = await Promise.all([
+      const [progMeta, stockMeta, etherMeta, pangeaMeta, dexStats] = await Promise.all([
         resolveProgrammableOnChainMetadata(ca, 1),
         resolveStockereumMeta(ca),
+        launch?.metadataURI ? resolveEtherStreetMeta(launch.metadataURI) : null,
+        launch?.metadataURI ? resolvePangeaMeta(launch.metadataURI) : null,
         fetchDexScreenerStats(ca),
       ]);
+
+      const resolvedMeta = pangeaMeta || etherMeta || stockMeta || progMeta;
 
       launch = {
         platformName: launch?.platformName || 'Ethereum Launchpad',
@@ -608,9 +621,13 @@ class AlertBot {
         category: launch?.category || 'Uniswap v4',
         creator: launch?.creator || stockMeta?.creator || null,
         hookAddress: launch?.hookAddress || stockMeta?.hookAddress || null,
-        lore: launch?.lore || progMeta?.description || stockMeta?.lore || '',
+        lore: launch?.lore || resolvedMeta?.description || resolvedMeta?.lore || '',
         socials: {
           ...(dexStats?.socials || {}),
+          ...(resolvedMeta?.socials || {}),
+          ...(launch?.socials || {}),
+        },
+      };
           ...(stockMeta?.socials || {}),
           ...(progMeta?.socials || {}),
           ...(launch?.socials || {}),

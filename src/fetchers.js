@@ -672,8 +672,158 @@ async function fetchEtherStreet() {
   return results;
 }
 
+const pangeaMetaCache = new Map();
+
+async function resolvePangeaMeta(metadataURI) {
+  if (!metadataURI) return null;
+  const cleanUri = String(metadataURI).trim();
+  if (pangeaMetaCache.has(cleanUri)) {
+    return pangeaMetaCache.get(cleanUri);
+  }
+
+  let hash = cleanUri;
+  if (hash.startsWith('ipfs://')) {
+    hash = hash.replace('ipfs://', '');
+  }
+  if (hash.startsWith('/ipfs/')) {
+    hash = hash.replace('/ipfs/', '');
+  }
+
+  const gateways = [
+    `https://ipfs.filebase.io/ipfs/${hash}`,
+    `https://ipfs.io/ipfs/${hash}`,
+  ];
+
+  for (const gw of gateways) {
+    try {
+      const data = await fetchJsonFast(gw, 3000);
+      if (data && typeof data === 'object') {
+        let image = data.image || null;
+        if (image && image.startsWith('ipfs://')) {
+          image = `https://ipfs.filebase.io/ipfs/${image.replace('ipfs://', '')}`;
+        }
+
+        const socials = {};
+        if (data.external_url) socials.website = data.external_url.trim();
+        if (data.extensions?.website) socials.website = data.extensions.website.trim();
+        if (data.twitter || data.extensions?.twitter)
+          socials.twitter = (data.twitter || data.extensions.twitter).trim();
+        if (data.telegram || data.extensions?.telegram)
+          socials.telegram = (data.telegram || data.extensions.telegram).trim();
+
+        const result = {
+          description: data.description ? data.description.trim() : '',
+          image,
+          socials,
+        };
+        pangeaMetaCache.set(cleanUri, result);
+        return result;
+      }
+    } catch {
+      // Try next gateway
+    }
+  }
+
+  return null;
+}
+
 /**
- * 5. Fetch live real-time Market Cap, Volume, Price Change, Buys/Sells AND Socials from DexScreener API
+ * 5. Pangea.trade Omnichain Uniswap v4 Launches
+ * API: https://www.pangea.trade/api/pools
+ */
+async function fetchPangea() {
+  const url = 'https://www.pangea.trade/api/pools';
+  let data;
+  try {
+    data = await fetchJsonFast(url, 6000);
+  } catch (err) {
+    console.warn('[Pangea] API fetch error:', err.message);
+    return [];
+  }
+
+  if (!data || !Array.isArray(data.launches)) return [];
+
+  // Filter out test launches and take top 25 newest
+  const newest = data.launches
+    .filter((l) => l && !l.test && l.slug)
+    .sort((a, b) => (b.listedAt || 0) - (a.listedAt || 0))
+    .slice(0, 25);
+
+  const results = newest.map((item) => {
+    const ethPool = item.pools?.find((p) => p.chain === 'ethereum' && p.token);
+    const mainPool = ethPool || item.pools?.find((p) => p.token) || item.pools?.[0];
+    const ca = ethPool?.token || mainPool?.token || item.slug;
+    const chains = item.launchChains?.map((c) => c.charAt(0).toUpperCase() + c.slice(1)).join(' • ') || 'Omnichain';
+    const priceUsd = mainPool?.priceUsd || item.cheapest?.usd || null;
+    const supply = Number(item.capSupply || item.supply?.total || 1000000000);
+    const mcapUsd = priceUsd && supply ? priceUsd * supply : null;
+
+    let image = null;
+    let bio = '';
+    const socials = {};
+
+    if (item.metadataURI) {
+      if (pangeaMetaCache.has(item.metadataURI)) {
+        const meta = pangeaMetaCache.get(item.metadataURI);
+        if (meta) {
+          if (meta.image) image = meta.image;
+          if (meta.description) bio = meta.description;
+          if (meta.socials?.website) socials.website = meta.socials.website;
+          if (meta.socials?.twitter) socials.twitter = meta.socials.twitter;
+          if (meta.socials?.telegram) socials.telegram = meta.socials.telegram;
+        }
+      } else {
+        // Resolve in background without blocking this poll cycle
+        resolvePangeaMeta(item.metadataURI).catch(() => {});
+      }
+    }
+
+    const launchedAtMs = item.listedAt ? item.listedAt * 1000 : Date.now();
+
+    return {
+      platformKey: 'pangea',
+      platformName: 'Pangea.trade',
+      platformBadge: '🌐 PANGEA',
+      platformColor: '#06b6d4',
+      chainName: ethPool ? 'Ethereum Mainnet (Uni v4)' : `${(mainPool?.chain || 'Omnichain').toUpperCase()} (Uni v4)`,
+      chainId: ethPool ? 1 : 1,
+      address: ca,
+      name: item.name || 'Unknown',
+      symbol: item.symbol || '???',
+      image: image || 'https://www.pangea.trade/branding/pangea-mark-256.png',
+      creator: null,
+      hookAddress: mainPool?.locker || null,
+      poolId: mainPool?.poolId || null,
+      category: `Pangea (${chains})`,
+      quoteSymbol: mainPool?.quoteSymbol || 'ETH',
+      quoteKind: 'Uniswap v4 Omnichain',
+      metadataURI: item.metadataURI || null,
+      marketCapUsd: mcapUsd,
+      volumeUsd: null,
+      volumeCoin: null,
+      poolQuoteEth: mainPool?.reserves ?? null,
+      holders: 0,
+      graduated: false,
+      buys: 0,
+      sells: 0,
+      trades: 0,
+      lore: bio,
+      description: bio || `Omnichain Uniswap v4 launch on Pangea.trade across ${chains}.`,
+      socials,
+      platformUrl: `https://www.pangea.trade/app/t/${item.slug}`,
+      explorerUrl: `https://etherscan.io/token/${ca}`,
+      dexScreenerUrl: `https://dexscreener.com/ethereum/${ca}`,
+      dexToolsUrl: `https://www.dextools.io/app/en/ether/pair-explorer/${ca}`,
+      launchedAtMs,
+      blockNumber: mainPool?.launchBlock || null,
+    };
+  });
+
+  return results;
+}
+
+/**
+ * 6. Fetch live real-time Market Cap, Volume, Price Change, Buys/Sells AND Socials from DexScreener API
  */
 async function fetchDexScreenerStats(tokenAddress) {
   try {
@@ -726,8 +876,10 @@ module.exports = {
   fetchStockereum,
   fetchSender,
   fetchEtherStreet,
+  fetchPangea,
   fetchDexScreenerStats,
   resolveProgrammableOnChainMetadata,
   resolveStockereumMeta,
   resolveEtherStreetMeta,
+  resolvePangeaMeta,
 };

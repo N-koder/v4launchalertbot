@@ -64,6 +64,7 @@ function startServer(port = 3080) {
       'enableStockereum',
       'enableSender',
       'enableEtherStreet',
+      'enablePangea',
     ];
     const update = {};
     for (const key of allowed) {

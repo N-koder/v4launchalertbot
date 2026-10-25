@@ -87,7 +87,8 @@
             Live Scanner: <span class="text-purple-400 font-medium">Programmable.market</span> •
             <span class="text-emerald-400 font-medium">Stockereum.com</span> •
             <span class="text-blue-400 font-medium">Sender.family</span> •
-            <span class="text-orange-400 font-medium">EtherStreet.fun</span>
+            <span class="text-orange-400 font-medium">EtherStreet.fun</span> •
+            <span class="text-cyan-400 font-medium">Pangea.trade</span>
           </p>
         </div>
       </div>
@@ -106,29 +107,33 @@
   <!-- Main Grid -->
   <main class="max-w-7xl mx-auto w-full px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
     
-    <!-- Left Column: Live Detected Launches Across the 4 Launchpads (7 cols) -->
+    <!-- Left Column: Live Detected Launches Across the 5 Launchpads (7 cols) -->
     <section class="lg:col-span-7 flex flex-col gap-4">
       <!-- Stats Row -->
-      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5">
-          <div class="text-xs text-slate-400">Tracked Launches</div>
-          <div id="statTracked" class="text-xl font-bold mt-1 text-white">0</div>
+      <div class="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400">Tracked</div>
+          <div id="statTracked" class="text-lg font-bold mt-1 text-white">0</div>
         </div>
-        <div class="bg-slate-900/90 border border-purple-500/20 rounded-xl p-3.5">
-          <div class="text-xs text-purple-300">🟣 Programmable</div>
-          <div id="statProg" class="text-xl font-bold mt-1 text-purple-400">0</div>
+        <div class="bg-slate-900/90 border border-purple-500/20 rounded-xl p-3">
+          <div class="text-[11px] text-purple-300">🟣 Prog</div>
+          <div id="statProg" class="text-lg font-bold mt-1 text-purple-400">0</div>
         </div>
-        <div class="bg-slate-900/90 border border-emerald-500/20 rounded-xl p-3.5">
-          <div class="text-xs text-emerald-300">🟢 Stockereum</div>
-          <div id="statStock" class="text-xl font-bold mt-1 text-emerald-400">0</div>
+        <div class="bg-slate-900/90 border border-emerald-500/20 rounded-xl p-3">
+          <div class="text-[11px] text-emerald-300">🟢 Stock</div>
+          <div id="statStock" class="text-lg font-bold mt-1 text-emerald-400">0</div>
         </div>
-        <div class="bg-slate-900/90 border border-blue-500/20 rounded-xl p-3.5">
-          <div class="text-xs text-blue-300">🔵 Sender</div>
-          <div id="statSender" class="text-xl font-bold mt-1 text-blue-400">0</div>
+        <div class="bg-slate-900/90 border border-blue-500/20 rounded-xl p-3">
+          <div class="text-[11px] text-blue-300">🔵 Sender</div>
+          <div id="statSender" class="text-lg font-bold mt-1 text-blue-400">0</div>
         </div>
-        <div class="bg-slate-900/90 border border-orange-500/20 rounded-xl p-3.5">
-          <div class="text-xs text-orange-300">🟠 EtherStreet</div>
-          <div id="statEther" class="text-xl font-bold mt-1 text-orange-400">0</div>
+        <div class="bg-slate-900/90 border border-orange-500/20 rounded-xl p-3">
+          <div class="text-[11px] text-orange-300">🟠 Ether</div>
+          <div id="statEther" class="text-lg font-bold mt-1 text-orange-400">0</div>
+        </div>
+        <div class="bg-slate-900/90 border border-cyan-500/20 rounded-xl p-3">
+          <div class="text-[11px] text-cyan-300">🌐 Pangea</div>
+          <div id="statPangea" class="text-lg font-bold mt-1 text-cyan-400">0</div>
         </div>
       </div>
 
@@ -150,6 +155,9 @@
           <button onclick="setFilter('etherstreet')" id="tab-etherstreet" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800">
             🟠 EtherStreet
           </button>
+          <button onclick="setFilter('pangea')" id="tab-pangea" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800">
+            🌐 Pangea
+          </button>
           <button onclick="setFilter('users')" id="tab-users" class="px-3 py-1.5 rounded-lg text-xs font-medium text-amber-300 hover:bg-slate-800 border border-amber-500/30">
             👑 Bot Users (<span id="userCountBadge">0</span>)
           </button>
@@ -159,7 +167,7 @@
 
       <!-- Token Feed List -->
       <div id="launchesList" class="space-y-2.5 overflow-y-auto max-h-[680px] pr-1">
-        <div class="text-center py-12 text-slate-500 text-sm">Loading live launches from Programmable, Stockereum, Sender, and EtherStreet...</div>
+        <div class="text-center py-12 text-slate-500 text-sm">Loading live launches from Programmable, Stockereum, Sender, EtherStreet, and Pangea...</div>
       </div>
     </section>
 
@@ -252,6 +260,10 @@
             <input id="chkEther" type="checkbox" class="rounded bg-slate-950 border-slate-700 text-indigo-600" />
             <span>🟠 EtherStreet.fun (Uniswap v4 Token Launches)</span>
           </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input id="chkPangea" type="checkbox" class="rounded bg-slate-950 border-slate-700 text-indigo-600" />
+            <span>🌐 Pangea.trade (Omnichain Uniswap v4 Launches)</span>
+          </label>
         </div>
       </div>
 
@@ -297,12 +309,14 @@
         const stockCount = allLaunches.filter(x => x.platformKey === 'stockereum').length;
         const senderCount = allLaunches.filter(x => x.platformKey === 'sender').length;
         const etherCount = allLaunches.filter(x => x.platformKey === 'etherstreet').length;
+        const pangeaCount = allLaunches.filter(x => x.platformKey === 'pangea').length;
 
         document.getElementById('statTracked').textContent = data.trackedTotal || allLaunches.length;
         document.getElementById('statProg').textContent = progCount;
         document.getElementById('statStock').textContent = stockCount;
         document.getElementById('statSender').textContent = senderCount;
         document.getElementById('statEther').textContent = etherCount;
+        document.getElementById('statPangea').textContent = pangeaCount;
 
         if (data.stats?.lastPollAt) {
           const secsAgo = Math.max(0, Math.round((Date.now() - data.stats.lastPollAt) / 1000));
@@ -325,7 +339,7 @@
 
     function setFilter(filter) {
       currentFilter = filter;
-      ['all', 'programmable', 'stockereum', 'sender', 'etherstreet', 'users'].forEach(f => {
+      ['all', 'programmable', 'stockereum', 'sender', 'etherstreet', 'pangea', 'users'].forEach(f => {
         const btn = document.getElementById(`tab-${f}`);
         if (!btn) return;
         if (f === filter) {
@@ -347,7 +361,7 @@
           return;
         }
         container.innerHTML = allSubscribers.map((u, i) => {
-          const p = u.platforms || { programmable: true, stockereum: true, sender: true, etherstreet: true };
+          const p = u.platforms || { programmable: true, stockereum: true, sender: true, etherstreet: true, pangea: true };
           const lastTime = u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleString() : new Date(u.subscribedAt).toLocaleString();
           return `
             <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
@@ -367,7 +381,8 @@
                     ${p.programmable !== false ? '<b class="text-purple-400">🟣Prog</b> ' : ''}
                     ${p.stockereum !== false ? '<b class="text-emerald-400">🟢Stock</b> ' : ''}
                     ${p.sender !== false ? '<b class="text-blue-400">🔵Sender</b> ' : ''}
-                    ${p.etherstreet !== false ? '<b class="text-orange-400">🟠Ether</b>' : ''}
+                    ${p.etherstreet !== false ? '<b class="text-orange-400">🟠Ether</b> ' : ''}
+                    ${p.pangea !== false ? '<b class="text-cyan-400">🌐Pangea</b>' : ''}
                   </span>
                 </div>
               </div>
@@ -400,7 +415,9 @@
             ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
             : item.platformKey === 'sender'
             ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
-            : 'bg-orange-500/15 text-orange-300 border-orange-500/30';
+            : item.platformKey === 'etherstreet'
+            ? 'bg-orange-500/15 text-orange-300 border-orange-500/30'
+            : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
 
         const timeStr = item.launchedAtMs ? new Date(item.launchedAtMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
 
@@ -577,6 +594,7 @@
       document.getElementById('chkStock').checked = currentSettings.enableStockereum !== false;
       document.getElementById('chkSender').checked = currentSettings.enableSender !== false;
       document.getElementById('chkEther').checked = currentSettings.enableEtherStreet !== false;
+      document.getElementById('chkPangea').checked = currentSettings.enablePangea !== false;
 
       const modal = document.getElementById('settingsModal');
       modal.classList.remove('hidden');
@@ -600,6 +618,7 @@
         enableStockereum: document.getElementById('chkStock').checked,
         enableSender: document.getElementById('chkSender').checked,
         enableEtherStreet: document.getElementById('chkEther').checked,
+        enablePangea: document.getElementById('chkPangea').checked,
       };
       await fetch('/api/settings', {
         method: 'POST',

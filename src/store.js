@@ -11,8 +11,9 @@ const DEFAULT_STATE = {
     stockereum: false,
     sender: false,
     etherstreet: false,
+    pangea: false,
   },
-  subscribers: {}, // chatId -> { chatId, username, firstName, subscribedAt, active: true, platforms: { programmable: true, stockereum: true, sender: true, etherstreet: true } }
+  subscribers: {}, // chatId -> { chatId, username, firstName, subscribedAt, active: true, platforms: { programmable: true, stockereum: true, sender: true, etherstreet: true, pangea: true } }
   seenTokens: {}, // key: `${platform}:${address.toLowerCase()}` -> timestamp
   recentLaunches: [], // array of normalized token objects (up to 100)
   stats: {
@@ -21,6 +22,7 @@ const DEFAULT_STATE = {
     stockereumCount: 0,
     senderCount: 0,
     etherstreetCount: 0,
+    pangeaCount: 0,
     lastPollAt: null,
     errors: 0,
   },
@@ -30,6 +32,7 @@ const DEFAULT_STATE = {
     enableStockereum: process.env.ENABLE_STOCKEREUM !== 'false',
     enableSender: process.env.ENABLE_SENDER !== 'false',
     enableEtherStreet: process.env.ENABLE_ETHERSTREET !== 'false',
+    enablePangea: process.env.ENABLE_PANGEA !== 'false',
     maestroRef: process.env.MAESTRO_REF || '',
     bananaRef: process.env.BANANA_REF || '',
     sigmaRef: process.env.SIGMA_REF || '',
@@ -80,6 +83,7 @@ class Store {
             stockereum: true,
             sender: true,
             etherstreet: true,
+            pangea: true,
           },
         };
         changed = true;
@@ -223,6 +227,8 @@ class Store {
       this.state.stats.senderCount = (this.state.stats.senderCount || 0) + 1;
     } else if (platformKey === 'etherstreet') {
       this.state.stats.etherstreetCount = (this.state.stats.etherstreetCount || 0) + 1;
+    } else if (platformKey === 'pangea') {
+      this.state.stats.pangeaCount = (this.state.stats.pangeaCount || 0) + 1;
     }
     this.save();
   }
@@ -255,6 +261,7 @@ class Store {
         stockereum: true,
         sender: true,
         etherstreet: true,
+        pangea: true,
       },
     };
     this.save();

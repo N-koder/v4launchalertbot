@@ -4,18 +4,20 @@ const {
   fetchStockereum,
   fetchSender,
   fetchEtherStreet,
+  fetchPangea,
 } = require('./fetchers');
 const { buildTelegramAlert } = require('./formatter');
 
 async function testAll() {
-  console.log('Testing live APIs for all 4 launchpads...\n');
+  console.log('Testing live APIs for all 5 launchpads...\n');
 
-  const [progEth, progRh, stock, sender, etherstreet] = await Promise.all([
+  const [progEth, progRh, stock, sender, etherstreet, pangea] = await Promise.all([
     fetchProgrammableEthereum(),
     fetchProgrammableRobinhood(),
     fetchStockereum(),
     fetchSender(),
     fetchEtherStreet(),
+    fetchPangea(),
   ]);
 
   console.log(`✅ Programmable (ETH): ${progEth.length} recent launches fetched`);
@@ -43,9 +45,14 @@ async function testAll() {
     console.log(`   Newest: ${etherstreet[0].name} ($${etherstreet[0].symbol}) [${etherstreet[0].category}] -> CA: ${etherstreet[0].address}`);
   }
 
-  if (etherstreet[0]) {
-    console.log('\n--- SAMPLE ETHERSTREET TELEGRAM ALERT CAPTION ---');
-    const preview = buildTelegramAlert(etherstreet[0]);
+  console.log(`✅ Pangea.trade: ${pangea.length} recent launches fetched`);
+  if (pangea[0]) {
+    console.log(`   Newest: ${pangea[0].name} ($${pangea[0].symbol}) [${pangea[0].category}] -> CA: ${pangea[0].address}`);
+  }
+
+  if (pangea[0]) {
+    console.log('\n--- SAMPLE PANGEA TELEGRAM ALERT CAPTION ---');
+    const preview = buildTelegramAlert(pangea[0]);
     console.log(preview.caption);
     console.log('\n--- SAMPLE INLINE BUTTONS ---');
     preview.replyMarkup.inline_keyboard.forEach((row, i) => {

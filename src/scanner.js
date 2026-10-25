@@ -6,6 +6,7 @@ const {
   fetchStockereum,
   fetchSender,
   fetchEtherStreet,
+  fetchPangea,
   fetchDexScreenerStats,
 } = require('./fetchers');
 
@@ -41,6 +42,11 @@ class LaunchScanner {
       'etherstreet',
       () => store.state.settings.enableEtherStreet,
       fetchEtherStreet
+    );
+    this.launchIndependentStream(
+      'pangea',
+      () => store.state.settings.enablePangea,
+      fetchPangea
     );
 
     // Background Live Volume & MarketCap Updater (ticks every 5 seconds to live-edit active Telegram alerts AND top dashboard tokens!)
@@ -128,6 +134,7 @@ class LaunchScanner {
     if (settings.enableStockereum) tasks.push(this.processPlatform('stockereum', fetchStockereum));
     if (settings.enableSender) tasks.push(this.processPlatform('sender', fetchSender));
     if (settings.enableEtherStreet) tasks.push(this.processPlatform('etherstreet', fetchEtherStreet));
+    if (settings.enablePangea) tasks.push(this.processPlatform('pangea', fetchPangea));
     await Promise.allSettled(tasks);
     store.state.stats.lastPollAt = Date.now();
   }
