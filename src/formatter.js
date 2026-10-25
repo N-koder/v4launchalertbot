@@ -120,7 +120,8 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
       if (launch.bscAddress) lines.push(`🟡 <b>BSC:</b> <code>${launch.bscAddress}</code>`);
       if (launch.rhAddress) lines.push(`🟣 <b>Robinhood:</b> <code>${launch.rhAddress}</code>`);
       if (launch.solanaAddress) lines.push(`🟣 <b>Solana:</b> <code>${launch.solanaAddress}</code>`);
-      lines.push(`💡 <i>Tap any chain address above to copy and trade on that chain!</i>`);
+      lines.push(``);
+      lines.push(`🔄 <i>In Maestro / Sigma, tap refresh (🔄) to switch active chains!</i>`);
     }
   } else {
     lines.push(`⛓ <b>Chain:</b> ${chainName}`);
@@ -238,49 +239,20 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   const sigmaStart = settings.sigmaRef ? `x-${settings.sigmaRef}-${ca}` : `x-${ca}`;
   const sigmaUrl = `https://t.me/Sigma_buyBot?start=${sigmaStart}`;
 
-  let inlineKeyboard = [
-    [
-      { text: '⚡ Maestro', url: maestroUrl },
-      { text: '∑ Sigma Bot', url: sigmaUrl },
-    ],
-    [
-      { text: '📈 DexScreener', url: launch.dexScreenerUrl },
-      { text: '📖 Lore', callback_data: `lore:${ca}` },
-    ],
-  ];
-
-  // If Pangea has distinct CAs on different chains, provide direct chain-specific Maestro trading buttons!
-  if (isPangea && !launch.isSameEvmAddress) {
-    const chainButtons = [];
-    if (launch.ethAddress) {
-      const s = settings.maestroRef ? `${launch.ethAddress}-${settings.maestroRef}` : launch.ethAddress;
-      chainButtons.push({ text: '⚡ Maestro (ETH)', url: `https://t.me/maestro?start=${s}` });
-    }
-    if (launch.baseAddress) {
-      const s = settings.maestroRef ? `${launch.baseAddress}-${settings.maestroRef}` : launch.baseAddress;
-      chainButtons.push({ text: '⚡ Maestro (Base)', url: `https://t.me/maestro?start=${s}` });
-    }
-    if (launch.bscAddress && chainButtons.length < 2) {
-      const s = settings.maestroRef ? `${launch.bscAddress}-${settings.maestroRef}` : launch.bscAddress;
-      chainButtons.push({ text: '⚡ Maestro (BSC)', url: `https://t.me/maestro?start=${s}` });
-    }
-
-    if (chainButtons.length > 0) {
-      inlineKeyboard = [
-        chainButtons,
-        [
-          { text: '∑ Sigma Bot', url: sigmaUrl },
-          { text: '📈 DexScreener', url: launch.dexScreenerUrl },
-        ],
-        [
-          { text: '🏛 Pangea App', url: launch.platformUrl },
-        ],
-      ];
-    }
-  }
-
   const replyMarkup = {
-    inline_keyboard: inlineKeyboard,
+    inline_keyboard: [
+      [
+        { text: '⚡ Maestro', url: maestroUrl },
+        { text: '∑ Sigma Bot', url: sigmaUrl },
+      ],
+      [
+        { text: '📈 DexScreener', url: launch.dexScreenerUrl },
+        {
+          text: isPangea ? '🏛 Pangea App' : '📖 Lore',
+          ...(isPangea ? { url: launch.platformUrl } : { callback_data: `lore:${ca}` }),
+        },
+      ],
+    ],
   };
 
   return {

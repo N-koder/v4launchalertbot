@@ -421,6 +421,26 @@
 
         const timeStr = item.launchedAtMs ? new Date(item.launchedAtMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
 
+        let caBadgesHtml = `
+          <span class="mono text-[11px] text-slate-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 hover:border-slate-600"
+                onclick="event.stopPropagation(); copyCA('${item.address}')"
+                title="Click to Copy CA">
+            📋 ${item.address.slice(0, 8)}...${item.address.slice(-6)}
+          </span>
+        `;
+
+        if (item.platformKey === 'pangea') {
+          const pills = [];
+          if (item.ethAddress) pills.push(`<span class="mono text-[10px] text-sky-300 bg-sky-950/70 hover:bg-sky-800 px-1.5 py-0.5 rounded border border-sky-800/60 cursor-pointer" onclick="event.stopPropagation(); copyCA('${item.ethAddress}')" title="Copy ETH CA">🔹 ETH</span>`);
+          if (item.baseAddress) pills.push(`<span class="mono text-[10px] text-blue-300 bg-blue-950/70 hover:bg-blue-800 px-1.5 py-0.5 rounded border border-blue-800/60 cursor-pointer" onclick="event.stopPropagation(); copyCA('${item.baseAddress}')" title="Copy Base CA">🔵 Base</span>`);
+          if (item.bscAddress) pills.push(`<span class="mono text-[10px] text-yellow-300 bg-yellow-950/70 hover:bg-yellow-800 px-1.5 py-0.5 rounded border border-yellow-800/60 cursor-pointer" onclick="event.stopPropagation(); copyCA('${item.bscAddress}')" title="Copy BSC CA">🟡 BSC</span>`);
+          if (item.rhAddress) pills.push(`<span class="mono text-[10px] text-purple-300 bg-purple-950/70 hover:bg-purple-800 px-1.5 py-0.5 rounded border border-purple-800/60 cursor-pointer" onclick="event.stopPropagation(); copyCA('${item.rhAddress}')" title="Copy Robinhood CA">🟣 RH</span>`);
+          if (item.solanaAddress) pills.push(`<span class="mono text-[10px] text-purple-300 bg-purple-950/70 hover:bg-purple-800 px-1.5 py-0.5 rounded border border-purple-800/60 cursor-pointer" onclick="event.stopPropagation(); copyCA('${item.solanaAddress}')" title="Copy Solana CA">🟣 SOL</span>`);
+          if (pills.length > 0) {
+            caBadgesHtml = `<div class="flex items-center gap-1.5 flex-wrap">${pills.join('')}</div>`;
+          }
+        }
+
         return `
           <div onclick="selectLaunch('${item.address}', '${item.platformKey}')"
                class="p-3.5 rounded-xl border transition cursor-pointer flex items-center justify-between gap-3 ${
@@ -440,12 +460,8 @@
                     ${item.platformBadge}
                   </span>
                 </div>
-                <div class="flex items-center gap-2 mt-1 text-xs text-slate-400">
-                  <span class="mono text-[11px] text-slate-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800"
-                        onclick="event.stopPropagation(); copyCA('${item.address}')"
-                        title="Click to Copy CA">
-                    📋 ${item.address.slice(0, 8)}...${item.address.slice(-6)}
-                  </span>
+                <div class="flex items-center gap-2 mt-1.5 text-xs text-slate-400 flex-wrap">
+                  ${caBadgesHtml}
                   <span>•</span>
                   <span class="truncate">${item.category || ''}</span>
                 </div>
