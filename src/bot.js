@@ -671,14 +671,20 @@ class AlertBot {
       let sentMsg = null;
       let sentAsPhoto = false;
 
-      if (launch.image && launch.image.startsWith('http')) {
+      const isDummyImage =
+        !launch.image ||
+        !launch.image.startsWith('http') ||
+        launch.image.includes('favicon') ||
+        launch.image.includes('dummy') ||
+        launch.image.includes('fallback');
+
+      if (!isDummyImage) {
         try {
-          // Convert .webp URLs via wsrv.nl proxy so Telegram sendPhoto never rejects WebP images!
           const photoUrl = launch.image.toLowerCase().endsWith('.webp')
             ? `https://wsrv.nl/?url=${encodeURIComponent(launch.image)}&output=jpg`
             : launch.image;
 
-          // Race sendPhoto against a 1200ms timer so slow external image hosts never delay message delivery
+          // Race sendPhoto against a tight 700ms timer so slow external image hosts NEVER delay message delivery!
           sentMsg = await Promise.race([
             this.bot.sendPhoto(targetChatId, photoUrl, {
               caption,
@@ -686,12 +692,12 @@ class AlertBot {
               reply_markup: replyMarkup,
             }),
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Photo download timed out (>1200ms)')), 1200)
+              setTimeout(() => reject(new Error('Photo download timed out (>700ms)')), 700)
             ),
           ]);
           sentAsPhoto = true;
         } catch (photoErr) {
-          // Fall back to instant text message
+          // Fall back instantly to text message
         }
       }
 

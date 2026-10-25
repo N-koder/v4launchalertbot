@@ -54,8 +54,8 @@ class LaunchScanner {
       2500
     );
 
-    // Background Live Volume & MarketCap Updater (ticks every 5 seconds to live-edit active Telegram alerts AND top dashboard tokens!)
-    setInterval(() => this.refreshLiveTrackedDexStats(), 5000);
+    // Background Live Volume & MarketCap Updater for dashboard tokens (ticks gently every 15s to keep network & event loop 100% free for instant launch detection!)
+    setInterval(() => this.refreshLiveTrackedDexStats(), 15000);
   }
 
   async refreshLiveTrackedDexStats() {

@@ -94,105 +94,65 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   const chainName = escapeHtml(launch.chainName || 'Ethereum Mainnet');
   const isPangea = launch.platformKey === 'pangea';
 
+  const makeMaestroUrl = (addr) => {
+    const start = settings.maestroRef ? `${addr}-${settings.maestroRef}` : addr;
+    return `https://t.me/maestro?start=${start}`;
+  };
+
   const lines = [];
-  lines.push(`<b>${badge} — NEW TOKEN LAUNCH!</b>`);
+  lines.push(`<b>${badge} | ${name} ($${symbol})</b>`);
   lines.push(`━━━━━━━━━━━━━━━━━━━━━━`);
-  lines.push(`🪙 <b>Token:</b> ${name} (<b>$${symbol}</b>)`);
   lines.push(`🏛 <b>Platform:</b> <a href="${launch.platformUrl}">${platformName}</a>`);
 
   if (isPangea) {
-    lines.push(`⛓ <b>Chains:</b> 🌐 <b>Omnichain</b> (${escapeHtml(launch.chainsList || 'ETH • Base • BSC • Robinhood')})`);
+    lines.push(`⛓ <b>Chains:</b> 🌐 ${escapeHtml(launch.chainsList || 'ETH • Base • BSC • Robinhood')}`);
     lines.push(``);
 
     if (launch.isSameEvmAddress) {
-      lines.push(`📋 <b>Universal Multi-Chain CA (Tap to Copy):</b>`);
-      lines.push(`<code>${ca}</code>`);
-      lines.push(`🔄 <i>Same CA on ETH, Base, BSC & Robinhood!</i>`);
-      lines.push(`💡 <i>In Maestro / Sigma, tap refresh (🔄) to cycle through chains.</i>`);
+      lines.push(`📋 <b>Universal CA:</b> <code>${ca}</code> • <a href="${makeMaestroUrl(ca)}">⚡ Maestro ↗</a>`);
       if (launch.solanaAddress && launch.solanaAddress !== ca) {
-        lines.push(``);
-        lines.push(`🟣 <b>Solana Address:</b> <code>${launch.solanaAddress}</code>`);
+        lines.push(`🟣 <b>Solana:</b> <code>${launch.solanaAddress}</code> • <a href="${makeMaestroUrl(launch.solanaAddress)}">⚡ Maestro ↗</a>`);
       }
     } else {
-      lines.push(`📋 <b>Contract Addresses by Chain (Tap to Copy):</b>`);
-      if (launch.ethAddress) lines.push(`🔹 <b>Ethereum:</b> <code>${launch.ethAddress}</code>`);
-      if (launch.baseAddress) lines.push(`🔵 <b>Base:</b> <code>${launch.baseAddress}</code>`);
-      if (launch.bscAddress) lines.push(`🟡 <b>BSC:</b> <code>${launch.bscAddress}</code>`);
-      if (launch.rhAddress) lines.push(`🟣 <b>Robinhood:</b> <code>${launch.rhAddress}</code>`);
-      if (launch.solanaAddress) lines.push(`🟣 <b>Solana:</b> <code>${launch.solanaAddress}</code>`);
-      lines.push(``);
-      lines.push(`🔄 <i>In Maestro / Sigma, tap refresh (🔄) to switch active chains!</i>`);
+      lines.push(`📋 <b>Contracts & Instant Sniping:</b>`);
+      if (launch.ethAddress) lines.push(`🔹 <b>ETH:</b> <code>${launch.ethAddress}</code> • <a href="${makeMaestroUrl(launch.ethAddress)}">⚡ Maestro ↗</a>`);
+      if (launch.baseAddress) lines.push(`🔵 <b>Base:</b> <code>${launch.baseAddress}</code> • <a href="${makeMaestroUrl(launch.baseAddress)}">⚡ Maestro ↗</a>`);
+      if (launch.bscAddress) lines.push(`🟡 <b>BSC:</b> <code>${launch.bscAddress}</code> • <a href="${makeMaestroUrl(launch.bscAddress)}">⚡ Maestro ↗</a>`);
+      if (launch.rhAddress) lines.push(`🟣 <b>RH:</b> <code>${launch.rhAddress}</code> • <a href="${makeMaestroUrl(launch.rhAddress)}">⚡ Maestro ↗</a>`);
+      if (launch.solanaAddress) lines.push(`🟣 <b>SOL:</b> <code>${launch.solanaAddress}</code> • <a href="${makeMaestroUrl(launch.solanaAddress)}">⚡ Maestro ↗</a>`);
     }
   } else {
     lines.push(`⛓ <b>Chain:</b> ${chainName}`);
     lines.push(``);
-    lines.push(`📋 <b>Contract Address (Tap to Copy):</b>`);
-    lines.push(`<code>${ca}</code>`);
+    lines.push(`📋 <b>Contract:</b> <code>${ca}</code> • <a href="${makeMaestroUrl(ca)}">⚡ Maestro ↗</a>`);
   }
+
   lines.push(``);
-  lines.push(`📊 <b>Launch Details (Live):</b>`);
-  const detailLines = [];
-  detailLines.push(`🧩 <b>Type / Pair:</b> ${escapeHtml(launch.category || launch.quoteSymbol || 'ETH')}`);
 
-  if (launch.marketCapUsd !== null && launch.marketCapUsd !== undefined && Number(launch.marketCapUsd) > 0) {
-    const chg =
-      launch.priceChange5m !== undefined && launch.priceChange5m !== null
-        ? ` (${launch.priceChange5m >= 0 ? '🟢 +' : '🔴 '}${launch.priceChange5m}%)`
-        : '';
-    detailLines.push(`💰 <b>Market Cap:</b> ${formatUsd(launch.marketCapUsd)}${chg}`);
-  } else {
-    detailLines.push(`💰 <b>Market Cap:</b> Indexing...`);
-  }
+  // Compact, classy Stats Row
+  const mcVal = Number(launch.marketCapUsd);
+  const mcStr = mcVal > 0 ? formatUsd(mcVal) : 'Fresh Launch';
+  const statsRow = [`💰 <b>MC:</b> ${mcStr}`];
 
-  const hasUsdVol = launch.volumeUsd !== null && launch.volumeUsd !== undefined && Number(launch.volumeUsd) > 0;
-  const hasCoinVol = launch.volumeCoin !== null && launch.volumeCoin !== undefined && Number(launch.volumeCoin) > 0;
-
-  if (hasUsdVol || hasCoinVol) {
-    const volParts = [];
-    if (hasUsdVol) {
-      volParts.push(formatUsd(launch.volumeUsd));
-    }
-    if (hasCoinVol) {
-      volParts.push(`${Number(launch.volumeCoin).toFixed(3)} ${escapeHtml(launch.quoteSymbol || 'ETH')}`);
-    }
-    detailLines.push(`📊 <b>Live Volume (24h):</b> ${volParts.join(' • ')}`);
-  } else {
-    detailLines.push(`📊 <b>Live Volume (24h):</b> $0.00 (Fresh Launch)`);
+  const volVal = Number(launch.volumeUsd);
+  if (volVal > 0) {
+    statsRow.push(`📊 <b>Vol:</b> ${formatUsd(volVal)}`);
   }
 
   const buysCount = launch.buys ?? 0;
   const sellsCount = launch.sells ?? 0;
   const totalTrades = launch.trades || buysCount + sellsCount || 0;
-  if (buysCount > 0 || sellsCount > 0) {
-    detailLines.push(`🔄 <b>Transactions:</b> 🟢 ${buysCount} Buys  |  🔴 ${sellsCount} Sells (${totalTrades} txns)`);
-  } else {
-    detailLines.push(`🔄 <b>Transactions:</b> ${totalTrades} Trades`);
+  if (totalTrades > 0) {
+    statsRow.push(`🔄 <b>Trades:</b> ${totalTrades}`);
   }
+  lines.push(statsRow.join('  •  '));
 
+  // Optional: Hook address if present
   if (launch.hookAddress) {
-    detailLines.push(
-      `🪝 <b>Uni v4 Hook:</b> <a href="https://etherscan.io/address/${launch.hookAddress}">${shortAddr(
-        launch.hookAddress
-      )}</a>`
-    );
-  }
-  if (launch.creator) {
-    detailLines.push(
-      `👤 <b>Creator:</b> <a href="https://etherscan.io/address/${launch.creator}">${shortAddr(
-        launch.creator
-      )}</a>`
-    );
-  }
-  if (launch.blockNumber) {
-    detailLines.push(`🧱 <b>Block:</b> #${escapeHtml(String(launch.blockNumber))}`);
+    lines.push(`🪝 <b>Uni v4 Hook:</b> <a href="https://etherscan.io/address/${launch.hookAddress}">${shortAddr(launch.hookAddress)}</a>`);
   }
 
-  detailLines.forEach((dLine, idx) => {
-    const prefix = idx === detailLines.length - 1 ? '└' : '├';
-    lines.push(`${prefix} ${dLine}`);
-  });
-
-  // Phanes-style Socials & Lore bar: 🌐 Web | 𝕏 X | ✈️ TG | 📖 Lore
+  // Socials Bar
   const socialBar = [];
   if (launch.socials?.website) {
     socialBar.push(`<a href="${escapeHtml(launch.socials.website)}">🌐 Web</a>`);
@@ -222,20 +182,17 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
     : launch.platformUrl;
   socialBar.push(`<a href="${loreDeepLink}">📖 Lore</a>`);
 
-  lines.push(``);
   lines.push(`🔗 <b>Links:</b> ${socialBar.join('  •  ')}`);
 
   if (launch.lore && launch.lore.trim().length > 0) {
-    const cleanLore = escapeHtml(launch.lore.trim()).slice(0, 180);
-    lines.push(`📖 <b>Lore:</b> <i>"${cleanLore}${launch.lore.length > 180 ? '...' : ''}"</i>`);
+    const cleanLore = escapeHtml(launch.lore.trim()).slice(0, 160);
+    lines.push(`📖 <b>Lore:</b> <i>"${cleanLore}${launch.lore.length > 160 ? '...' : ''}"</i>`);
   }
 
   const caption = lines.join('\n');
 
   // Trading bot deep links (pre-loaded with the token's Contract Address!)
-  const maestroStart = settings.maestroRef ? `${ca}-${settings.maestroRef}` : ca;
-  const maestroUrl = `https://t.me/maestro?start=${maestroStart}`;
-
+  const maestroUrl = makeMaestroUrl(ca);
   const sigmaStart = settings.sigmaRef ? `x-${settings.sigmaRef}-${ca}` : `x-${ca}`;
   const sigmaUrl = `https://t.me/Sigma_buyBot?start=${sigmaStart}`;
 
