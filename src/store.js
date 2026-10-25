@@ -89,6 +89,30 @@ class Store {
         changed = true;
       }
     }
+
+    // Ensure all existing subscribers have etherstreet and pangea enabled by default!
+    for (const sub of Object.values(this.state.subscribers || {})) {
+      if (!sub.platforms) {
+        sub.platforms = {
+          programmable: true,
+          stockereum: true,
+          sender: true,
+          etherstreet: true,
+          pangea: true,
+        };
+        changed = true;
+      } else {
+        if (sub.platforms.etherstreet === undefined) {
+          sub.platforms.etherstreet = true;
+          changed = true;
+        }
+        if (sub.platforms.pangea === undefined) {
+          sub.platforms.pangea = true;
+          changed = true;
+        }
+      }
+    }
+
     if (changed) this.save();
   }
 

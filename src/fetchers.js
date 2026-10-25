@@ -630,6 +630,10 @@ async function fetchEtherStreet() {
   try {
     list = await fetchJsonFast(url, 6000);
   } catch (err) {
+    if (err.message && err.message.includes('403')) {
+      console.warn('[EtherStreet] ⚠️ Vercel challenge/403 detected. Backing off to clear challenge...');
+      return -1;
+    }
     console.warn('[EtherStreet] API fetch error:', err.message);
     return [];
   }
@@ -789,9 +793,14 @@ async function fetchPangea() {
     .slice(0, 25);
 
   const results = newest.map((item) => {
-    const ethPool = item.pools?.find((p) => p.chain === 'ethereum' && p.token);
-    const mainPool = ethPool || item.pools?.find((p) => p.token) || item.pools?.[0];
-    const ca = ethPool?.token || mainPool?.token || item.slug;
+    // Find canonical EVM token address (0x...) across ethereum, base, bsc, robinhood
+    const evmPool = item.pools?.find(
+      (p) =>
+        (p.chain === 'ethereum' || p.chain === 'base' || p.chain === 'bsc' || p.chain === 'robinhood') &&
+        p.token?.startsWith('0x')
+    );
+    const mainPool = evmPool || item.pools?.find((p) => p.token) || item.pools?.[0];
+    const ca = evmPool?.token || mainPool?.token || item.slug;
 
     // Build human-friendly multi-chain display (ETH, Base, BSC, Robinhood, Solana)
     const rawChains = item.launchChains?.length

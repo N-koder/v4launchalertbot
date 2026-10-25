@@ -121,6 +121,7 @@ class AlertBot {
       { command: 'help', description: '📖 Show help & available commands' },
       { command: 'settings', description: '⚙️ Filter launchpads (Programmable, Stockereum, Sender, EtherStreet, Pangea)' },
       { command: 'latest', description: '🔥 View the newest detected token launch' },
+      { command: 'test', description: '🧪 Test alert delivery in your chat' },
       { command: 'stop', description: '🔕 Pause personal launch alerts' },
     ];
 
@@ -387,18 +388,23 @@ class AlertBot {
       await this.sendToTarget(latest, chatId);
     });
 
-    // 👑 ADMIN ONLY: /test
+    // /test — Lets any user test alert delivery in their chat, or broadcasts if Admin
     this.bot.onText(/^\/test/, async (msg) => {
-      if (!this.isAdmin(msg)) return;
       const chatId = msg.chat.id;
+      const isUserAdmin = this.isAdmin(msg);
+      store.recordUserAction(chatId, msg.from, '/test');
+
       const sample = store.state.recentLaunches[0];
       if (!sample) {
         return this.bot.sendMessage(chatId, 'Still fetching initial launches, try again in 2 seconds.');
       }
-      const sentOk = await this.sendLaunchAlert(sample);
-      if (!sentOk) {
-        await this.sendToTarget(sample, chatId);
-      } else {
+
+      // Always deliver directly to the requesting user so they can verify alerts work in their chat!
+      await this.sendToTarget(sample, chatId);
+
+      if (isUserAdmin) {
+        // Admin also broadcasts to all subscribers & channel
+        await this.sendLaunchAlert(sample);
         await this.bot.sendMessage(
           chatId,
           `✅ Broadcasted test alert for <b>${sample.name}</b> to your Channel & active Personal DM subscribers!`,

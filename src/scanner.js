@@ -24,30 +24,34 @@ class LaunchScanner {
     this.lastLatencyMs = {};
   }
 
-  start(intervalSeconds = 0.5) {
-    this.intervalMs = Math.max(350, Math.round(Number(intervalSeconds) * 1000));
+  start(intervalSeconds = 1.0) {
+    this.intervalMs = Math.max(800, Math.round(Number(intervalSeconds) * 1000));
     this.running = true;
     console.log(
-      `[Scanner] ⚡ ULTRA-FAST STREAM ENGINE ACTIVE (Polling each launchpad independently every ${this.intervalMs}ms with Keep-Alive TLS)`
+      `[Scanner] ⚡ ULTRA-FAST STREAM ENGINE ACTIVE (Polling launchpads independently with persistent Keep-Alive TLS)`
     );
 
-    this.launchIndependentStream('programmable', () => store.state.settings.enableProgrammable, fetchProgrammableEthereum);
+    // Optimized independent polling streams with anti-WAF rate limit protection:
+    this.launchIndependentStream('stockereum', () => store.state.settings.enableStockereum, fetchStockereum, 1200);
+    this.launchIndependentStream('sender', () => store.state.settings.enableSender, fetchSender, 1400);
+    this.launchIndependentStream('pangea', () => store.state.settings.enablePangea, fetchPangea, 1800);
+    this.launchIndependentStream(
+      'programmable',
+      () => store.state.settings.enableProgrammable,
+      fetchProgrammableEthereum,
+      2000
+    );
     this.launchIndependentStream(
       'programmable_robinhood',
       () => store.state.settings.enableProgrammableRobinhood,
-      fetchProgrammableRobinhood
+      fetchProgrammableRobinhood,
+      2500
     );
-    this.launchIndependentStream('stockereum', () => store.state.settings.enableStockereum, fetchStockereum);
-    this.launchIndependentStream('sender', () => store.state.settings.enableSender, fetchSender);
     this.launchIndependentStream(
       'etherstreet',
       () => store.state.settings.enableEtherStreet,
-      fetchEtherStreet
-    );
-    this.launchIndependentStream(
-      'pangea',
-      () => store.state.settings.enablePangea,
-      fetchPangea
+      fetchEtherStreet,
+      2500
     );
 
     // Background Live Volume & MarketCap Updater (ticks every 5 seconds to live-edit active Telegram alerts AND top dashboard tokens!)
@@ -127,22 +131,33 @@ class LaunchScanner {
     }
   }
 
-  launchIndependentStream(platformKey, isEnabledFn, fetcherFn) {
+  launchIndependentStream(platformKey, isEnabledFn, fetcherFn, customIntervalMs = null) {
+    const baseInterval = customIntervalMs || this.intervalMs;
+    let currentInterval = baseInterval;
+
     const loop = async () => {
       if (!this.running) return;
       const t0 = Date.now();
       try {
         if (isEnabledFn()) {
-          await this.processPlatform(platformKey, fetcherFn);
+          const res = await this.processPlatform(platformKey, fetcherFn);
           this.lastLatencyMs[platformKey] = Date.now() - t0;
           store.state.stats.lastPollAt = Date.now();
           store.state.stats.latencies = this.lastLatencyMs;
+
+          if (res === -1) {
+            // WAF challenge detected -> back off for 20 seconds so Vercel challenge expires!
+            currentInterval = 20000;
+          } else {
+            currentInterval = baseInterval;
+          }
         }
       } catch (err) {
         store.state.stats.errors = (store.state.stats.errors || 0) + 1;
+        currentInterval = Math.min(currentInterval * 1.5, 15000);
       } finally {
         const elapsed = Date.now() - t0;
-        const nextDelay = Math.max(100, this.intervalMs - elapsed);
+        const nextDelay = Math.max(100, currentInterval - elapsed);
         setTimeout(loop, nextDelay);
       }
     };
@@ -165,7 +180,8 @@ class LaunchScanner {
 
   async processPlatform(platformKey, fetcherFn) {
     const items = await fetcherFn();
-    if (!Array.isArray(items) || items.length === 0) return;
+    if (items === -1) return -1;
+    if (!Array.isArray(items) || items.length === 0) return 0;
 
     const isInitialized = store.isPlatformInitialized(platformKey);
     const chronological = [...items].sort((a, b) => (a.launchedAtMs || 0) - (b.launchedAtMs || 0));
