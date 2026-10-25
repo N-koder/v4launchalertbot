@@ -239,9 +239,8 @@ async function fetchProgrammableEthereum() {
   const url = 'https://programmable.market/api/explore/ethereum';
   let data;
   try {
-    data = await fetchJsonFast(url, 7000);
+    data = await fetchJsonFast(url, 12000);
   } catch (err) {
-    console.warn('[Programmable ETH] Fetch error:', err.message);
     return [];
   }
   if (!data || !Array.isArray(data.items)) return [];

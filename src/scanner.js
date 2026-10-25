@@ -126,7 +126,6 @@ class LaunchScanner {
           poolQuoteEth: dexStats?.poolQuoteEth ?? baseLaunch.poolQuoteEth,
         };
         store.addRecentLaunch(merged, true);
-        await alertBot.updateLiveAlertMessages(merged);
       }
     }
   }
@@ -247,7 +246,6 @@ class LaunchScanner {
                     poolQuoteEth: dex.poolQuoteEth ?? launch.poolQuoteEth,
                   };
                   store.addRecentLaunch(enriched, true);
-                  alertBot.updateLiveAlertMessages(enriched).catch(() => {});
                 }
               })
               .catch(() => {});

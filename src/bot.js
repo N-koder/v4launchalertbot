@@ -711,7 +711,11 @@ class AlertBot {
       if (err.message && (err.message.includes('403') || err.message.includes('blocked'))) {
         store.setSubscriberActive(targetChatId, false);
       }
-      console.error(`[TelegramBot] ❌ Failed to send alert to ${targetChatId}:`, err.message);
+      if (err.message && err.message.includes('429')) {
+        console.warn(`[TelegramBot] ⚠️ Telegram rate limit active on ${targetChatId}:`, err.message);
+      } else {
+        console.error(`[TelegramBot] ❌ Failed to send alert to ${targetChatId}:`, err.message);
+      }
       return false;
     }
   }
@@ -834,10 +838,17 @@ class AlertBot {
       return false;
     }
 
-    const results = await Promise.allSettled(
-      Array.from(targets).map((chatId) => this.sendToTarget(launch, chatId))
-    );
-    const successCount = results.filter((r) => r.status === 'fulfilled' && r.value === true).length;
+    let successCount = 0;
+    for (const chatId of targets) {
+      try {
+        const ok = await this.sendToTarget(launch, chatId);
+        if (ok) successCount++;
+      } catch (err) {
+        // Continue to other chats
+      }
+      // Safe 50ms pause between sends strictly respects Telegram global broadcast limits
+      await new Promise((r) => setTimeout(r, 50));
+    }
     store.save();
 
     return successCount > 0;
