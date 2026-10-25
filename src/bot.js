@@ -628,11 +628,6 @@ class AlertBot {
           ...(launch?.socials || {}),
         },
       };
-          ...(stockMeta?.socials || {}),
-          ...(progMeta?.socials || {}),
-          ...(launch?.socials || {}),
-        },
-      };
     }
 
     const loreHtml = buildLoreMessage(launch);
