@@ -99,9 +99,7 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   };
 
   const lines = [];
-  const badge = isPangea ? 'OMNICHAIN' : 'ETH V4';
-  lines.push(`⚡️ <b>NEW LAUNCH</b>  •  <b>${badge}</b>`);
-  lines.push(`<b>${name}</b> (<code>$${symbol}</code>)`);
+  lines.push(`<b>${name} ($${symbol})</b>`);
   lines.push(`━━━━━━━━━━━━━━━━━━━━━━`);
   lines.push(`🏛 <b>Platform:</b> <a href="${launch.platformUrl}">${platformName}</a>`);
 
