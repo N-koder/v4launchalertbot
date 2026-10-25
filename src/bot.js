@@ -821,17 +821,13 @@ class AlertBot {
       targets.add(channelId.trim());
     }
 
-    // Seed default subscribers right here in case INITIAL_SUBSCRIBERS wasn't set in Render env
-    const defaultAdminIds = ['1947158378', '1314470665', '7834050828', '1032627697'];
-    for (const defaultId of defaultAdminIds) {
-      if (!store.state.subscribers[defaultId]) {
-        store.upsertSubscriber(defaultId, { active: true });
+    // If channel is configured, broadcast directly to the Channel without spamming private DMs!
+    const enableDmAlerts = process.env.ENABLE_DM_ALERTS === 'true';
+    if (enableDmAlerts || targets.size === 0) {
+      const subs = store.getActiveSubscribersForPlatform(launch.platformKey);
+      for (const sub of subs) {
+        targets.add(String(sub.chatId));
       }
-    }
-
-    const subs = store.getActiveSubscribersForPlatform(launch.platformKey);
-    for (const sub of subs) {
-      targets.add(String(sub.chatId));
     }
 
     if (targets.size === 0) {

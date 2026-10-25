@@ -36,7 +36,7 @@ const DEFAULT_STATE = {
     maestroRef: process.env.MAESTRO_REF || '',
     bananaRef: process.env.BANANA_REF || '',
     sigmaRef: process.env.SIGMA_REF || '',
-    channelId: process.env.TELEGRAM_CHANNEL_ID || '',
+    channelId: process.env.TELEGRAM_CHANNEL_ID || '@ethv4launches',
   },
 };
 
@@ -145,7 +145,7 @@ class Store {
             ...DEFAULT_STATE.settings,
             ...(parsed.settings || {}),
             // Override with .env if explicitly provided
-            channelId: process.env.TELEGRAM_CHANNEL_ID || parsed.settings?.channelId || '',
+            channelId: process.env.TELEGRAM_CHANNEL_ID || parsed.settings?.channelId || '@ethv4launches',
             maestroRef: process.env.MAESTRO_REF || parsed.settings?.maestroRef || '',
             bananaRef: process.env.BANANA_REF || parsed.settings?.bananaRef || '',
             sigmaRef: process.env.SIGMA_REF || parsed.settings?.sigmaRef || '',
