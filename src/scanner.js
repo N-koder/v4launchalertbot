@@ -194,12 +194,8 @@ class LaunchScanner {
 
       const alreadySeen = store.hasSeen(platformKey, launch.address);
       if (alreadySeen) {
-        // If this token has an active Telegram message, live-update its Volume, Market Cap & Trades!
-        const trackKey = `${platformKey}:${String(launch.address).toLowerCase()}`;
-        if (alertBot.liveTrackedAlerts && alertBot.liveTrackedAlerts.has(trackKey)) {
-          store.addRecentLaunch(launch, true);
-          alertBot.updateLiveAlertMessages(launch).catch(() => {});
-        }
+        // Token already alerted — update dashboard stats without spamming Telegram
+        store.addRecentLaunch(launch, true);
         continue;
       }
       if (!alreadySeen) {
