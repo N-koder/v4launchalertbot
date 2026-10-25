@@ -753,7 +753,27 @@ async function fetchPangea() {
     const ethPool = item.pools?.find((p) => p.chain === 'ethereum' && p.token);
     const mainPool = ethPool || item.pools?.find((p) => p.token) || item.pools?.[0];
     const ca = ethPool?.token || mainPool?.token || item.slug;
-    const chains = item.launchChains?.map((c) => c.charAt(0).toUpperCase() + c.slice(1)).join(' • ') || 'Omnichain';
+
+    // Build human-friendly multi-chain display (ETH, Base, BSC, Robinhood, Solana)
+    const rawChains = item.launchChains?.length
+      ? item.launchChains
+      : item.pools?.map((p) => p.chain).filter(Boolean) || ['ethereum', 'base', 'bsc', 'robinhood'];
+
+    const mappedChains = rawChains.map((c) => {
+      const lower = String(c).toLowerCase();
+      if (lower === 'ethereum' || lower === 'eth') return 'ETH';
+      if (lower === 'base') return 'Base';
+      if (lower === 'bsc' || lower === 'binance') return 'BSC';
+      if (lower === 'robinhood' || lower === 'rh') return 'Robinhood';
+      if (lower === 'solana' || lower === 'sol') return 'Solana';
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    });
+    const uniqueChains = [...new Set(mappedChains)];
+    const chainsList = uniqueChains.join(' • ') || 'ETH • Base • BSC • Robinhood';
+
+    const solanaPool = item.pools?.find((p) => p.chain === 'solana' && p.token);
+    const solanaAddress = solanaPool?.token || null;
+
     const priceUsd = mainPool?.priceUsd || item.cheapest?.usd || null;
     const supply = Number(item.capSupply || item.supply?.total || 1000000000);
     const mcapUsd = priceUsd && supply ? priceUsd * supply : null;
@@ -785,8 +805,10 @@ async function fetchPangea() {
       platformName: 'Pangea.trade',
       platformBadge: '🌐 PANGEA',
       platformColor: '#06b6d4',
-      chainName: ethPool ? 'Ethereum Mainnet (Uni v4)' : `${(mainPool?.chain || 'Omnichain').toUpperCase()} (Uni v4)`,
-      chainId: ethPool ? 1 : 1,
+      chainName: `🌐 Omnichain (${chainsList})`,
+      chainsList,
+      solanaAddress,
+      chainId: 1,
       address: ca,
       name: item.name || 'Unknown',
       symbol: item.symbol || '???',
@@ -794,7 +816,7 @@ async function fetchPangea() {
       creator: null,
       hookAddress: mainPool?.locker || null,
       poolId: mainPool?.poolId || null,
-      category: `Pangea (${chains})`,
+      category: `Omnichain v4 (${chainsList})`,
       quoteSymbol: mainPool?.quoteSymbol || 'ETH',
       quoteKind: 'Uniswap v4 Omnichain',
       metadataURI: item.metadataURI || null,
@@ -808,7 +830,7 @@ async function fetchPangea() {
       sells: 0,
       trades: 0,
       lore: bio,
-      description: bio || `Omnichain Uniswap v4 launch on Pangea.trade across ${chains}.`,
+      description: bio || `Omnichain Uniswap v4 launch on Pangea.trade deployed across ${chainsList}.`,
       socials,
       platformUrl: `https://www.pangea.trade/app/t/${item.slug}`,
       explorerUrl: `https://etherscan.io/token/${ca}`,

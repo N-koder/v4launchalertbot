@@ -27,6 +27,7 @@ function buildLoreMessage(launch) {
   const symbol = escapeHtml(launch.symbol || '???');
   const ca = launch.address;
   const platformName = escapeHtml(launch.platformName || 'Launchpad');
+  const isPangea = launch.platformKey === 'pangea';
 
   const rawLore = (launch.lore || '').trim();
   const loreBody = rawLore
@@ -57,6 +58,9 @@ function buildLoreMessage(launch) {
     `📖 <b>TOKEN LORE — ${name} ($${symbol})</b>`,
     `━━━━━━━━━━━━━━━━━━━━━━`,
     `📋 <b>CA:</b> <code>${ca}</code>`,
+    isPangea
+      ? `🌐 <i>Universal Omnichain CA (${escapeHtml(launch.chainsList || 'ETH • Base • BSC • Robinhood')})</i>`
+      : null,
     ``,
     `📜 <b>Origin & Lore:</b>`,
     loreBody,
@@ -88,16 +92,31 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   const platformName = escapeHtml(launch.platformName || 'Launchpad');
   const badge = escapeHtml(launch.platformBadge || '🚀 NEW LAUNCH');
   const chainName = escapeHtml(launch.chainName || 'Ethereum Mainnet');
+  const isPangea = launch.platformKey === 'pangea';
 
   const lines = [];
   lines.push(`<b>${badge} — NEW TOKEN LAUNCH!</b>`);
   lines.push(`━━━━━━━━━━━━━━━━━━━━━━`);
   lines.push(`🪙 <b>Token:</b> ${name} (<b>$${symbol}</b>)`);
   lines.push(`🏛 <b>Platform:</b> <a href="${launch.platformUrl}">${platformName}</a>`);
-  lines.push(`⛓ <b>Chain:</b> ${chainName}`);
-  lines.push(``);
-  lines.push(`📋 <b>Contract Address (Tap to Copy):</b>`);
-  lines.push(`<code>${ca}</code>`);
+
+  if (isPangea) {
+    lines.push(`⛓ <b>Chains:</b> 🌐 <b>Omnichain</b> (${escapeHtml(launch.chainsList || 'ETH • Base • BSC • Robinhood')})`);
+    lines.push(``);
+    lines.push(`📋 <b>Universal Multi-Chain CA (Tap to Copy):</b>`);
+    lines.push(`<code>${ca}</code>`);
+    lines.push(`🔄 <i>Same CA on ETH, Base, BSC & Robinhood!</i>`);
+    lines.push(`💡 <i>In Maestro / Sigma, tap refresh (🔄) to cycle through chains.</i>`);
+    if (launch.solanaAddress && launch.solanaAddress !== ca) {
+      lines.push(``);
+      lines.push(`🟣 <b>Solana Address:</b> <code>${launch.solanaAddress}</code>`);
+    }
+  } else {
+    lines.push(`⛓ <b>Chain:</b> ${chainName}`);
+    lines.push(``);
+    lines.push(`📋 <b>Contract Address (Tap to Copy):</b>`);
+    lines.push(`<code>${ca}</code>`);
+  }
   lines.push(``);
   lines.push(`📊 <b>Launch Details (Live):</b>`);
   const detailLines = [];
