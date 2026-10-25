@@ -99,26 +99,28 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   };
 
   const lines = [];
-  lines.push(`⚡️ <b>NEW LAUNCH</b> | <b>${name}</b> (<code>$${symbol}</code>)`);
+  const badge = isPangea ? 'OMNICHAIN' : 'ETH V4';
+  lines.push(`⚡️ <b>NEW LAUNCH</b>  •  <b>${badge}</b>`);
+  lines.push(`<b>${name}</b> (<code>$${symbol}</code>)`);
   lines.push(`━━━━━━━━━━━━━━━━━━━━━━`);
   lines.push(`🏛 <b>Platform:</b> <a href="${launch.platformUrl}">${platformName}</a>`);
 
   if (isPangea) {
     lines.push(``);
     if (launch.isSameEvmAddress) {
-      lines.push(`📋 <b>Universal Multi-Chain CA:</b>`);
+      lines.push(`🔗 <b>Multi-Chain Contracts:</b>`);
       lines.push(`<code>${ca}</code>  <a href="${makeMaestroUrl(ca)}">[Maestro]</a>`);
       lines.push(`<i>Omnichain: ETH · Base · BSC · Robinhood</i>`);
       if (launch.solanaAddress && launch.solanaAddress !== ca) {
-        lines.push(`🟣 <b>SOL</b>   <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
+        lines.push(`<b>SOL:</b>  <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
       }
     } else {
-      lines.push(`📋 <b>Multi-Chain Contracts:</b>`);
-      if (launch.ethAddress) lines.push(`🔷 <b>ETH</b>   <code>${launch.ethAddress}</code>  <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
-      if (launch.baseAddress) lines.push(`🔹 <b>BASE</b>  <code>${launch.baseAddress}</code>  <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
-      if (launch.bscAddress) lines.push(`🔸 <b>BSC</b>   <code>${launch.bscAddress}</code>  <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
-      if (launch.rhAddress) lines.push(`🟣 <b>RH</b>    <code>${launch.rhAddress}</code>  <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
-      if (launch.solanaAddress) lines.push(`🟣 <b>SOL</b>   <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
+      lines.push(`🔗 <b>Multi-Chain Contracts:</b>`);
+      if (launch.ethAddress) lines.push(`<b>ETH:</b>  <code>${launch.ethAddress}</code>  <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
+      if (launch.baseAddress) lines.push(`<b>BASE:</b> <code>${launch.baseAddress}</code>  <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
+      if (launch.bscAddress) lines.push(`<b>BSC:</b>  <code>${launch.bscAddress}</code>  <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
+      if (launch.rhAddress) lines.push(`<b>RH:</b>   <code>${launch.rhAddress}</code>  <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
+      if (launch.solanaAddress) lines.push(`<b>SOL:</b>  <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
     }
   } else {
     // Single-chain launches: clean CA without [Maestro] link beside it (the Maestro button is below!)
@@ -161,9 +163,13 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   if (!isPangea && launch.chainName) {
     metrics.push(`Chain: <b>${escapeHtml(chainName.replace(/\s*\(.*\)/, ''))}</b>`);
   }
-  lines.push(`📊 <b>Stats:</b> ${metrics.join('  •  ')}`);
+  lines.push(`📊 <b>Stats:</b>`);
+  lines.push(metrics.join('  •  '));
 
-  // Clean Links Bar
+  // Distance between Stats and Links
+  lines.push(``);
+
+  // Clean Links Bar (DexScreener removed since dedicated button exists!)
   const links = [];
   if (launch.socials?.website) {
     links.push(`<a href="${escapeHtml(launch.socials.website)}">Website</a>`);
@@ -187,10 +193,6 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
     links.push(`<a href="${escapeHtml(tg)}">Telegram</a>`);
   }
 
-  if (launch.dexScreenerUrl) {
-    links.push(`<a href="${escapeHtml(launch.dexScreenerUrl)}">DexScreener</a>`);
-  }
-
   lines.push(`🔗 <b>Links:</b> ${links.join('  •  ')}`);
 
   const caption = lines.join('\n');
@@ -203,13 +205,13 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   const replyMarkup = {
     inline_keyboard: [
       [
-        { text: '⚡ Maestro', url: maestroUrl },
-        { text: '∑ Sigma', url: sigmaUrl },
+        { text: '⚡ Maestro ↗', url: maestroUrl },
+        { text: '∑ Sigma ↗', url: sigmaUrl },
       ],
       [
-        { text: '📈 DexScreener', url: launch.dexScreenerUrl },
+        { text: '📈 DexScreener ↗', url: launch.dexScreenerUrl },
         {
-          text: isPangea ? '🏛 Pangea App' : '🏛 App',
+          text: isPangea ? '🏛 Pangea App ↗' : '🏛 App ↗',
           url: launch.platformUrl,
         },
       ],
