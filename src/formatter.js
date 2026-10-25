@@ -106,13 +106,14 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   if (isPangea) {
     lines.push(``);
     if (launch.isSameEvmAddress) {
-      lines.push(`📋 <b>Universal CA:</b> <code>${ca}</code>  <a href="${makeMaestroUrl(ca)}">[Maestro]</a>`);
+      lines.push(`📋 <b>Universal Multi-Chain CA:</b>`);
+      lines.push(`<code>${ca}</code>  <a href="${makeMaestroUrl(ca)}">[Maestro]</a>`);
       lines.push(`<i>Omnichain: ETH · Base · BSC · Robinhood</i>`);
       if (launch.solanaAddress && launch.solanaAddress !== ca) {
-        lines.push(`🟣 <b>SOL:</b> <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
+        lines.push(`🟣 <b>SOL</b>   <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
       }
     } else {
-      lines.push(`📋 <b>Contract Addresses & Fast Sniping:</b>`);
+      lines.push(`📋 <b>Multi-Chain Contracts:</b>`);
       if (launch.ethAddress) lines.push(`🔷 <b>ETH</b>   <code>${launch.ethAddress}</code>  <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
       if (launch.baseAddress) lines.push(`🔹 <b>BASE</b>  <code>${launch.baseAddress}</code>  <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
       if (launch.bscAddress) lines.push(`🔸 <b>BSC</b>   <code>${launch.bscAddress}</code>  <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
@@ -120,8 +121,23 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
       if (launch.solanaAddress) lines.push(`🟣 <b>SOL</b>   <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
     }
   } else {
+    // Single-chain launches: clean CA without [Maestro] link beside it (the Maestro button is below!)
     lines.push(``);
-    lines.push(`📋 <b>Contract:</b> <code>${ca}</code>  <a href="${makeMaestroUrl(ca)}">[Maestro]</a>`);
+    lines.push(`📋 <b>Contract Address:</b>`);
+    lines.push(`<code>${ca}</code>`);
+  }
+
+  // Lore / Story / Description
+  const loreText = (launch.lore || launch.description || '').trim();
+  if (
+    loreText &&
+    !loreText.startsWith('Launched on') &&
+    !loreText.startsWith('Create a fixed-supply')
+  ) {
+    const cleanLore = escapeHtml(loreText).slice(0, 240);
+    lines.push(``);
+    lines.push(`📖 <b>Lore:</b>`);
+    lines.push(`<i>"${cleanLore}${loreText.length > 240 ? '...' : ''}"</i>`);
   }
 
   lines.push(``);
@@ -176,11 +192,6 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   }
 
   lines.push(`🔗 <b>Links:</b> ${links.join('  •  ')}`);
-
-  if (launch.lore && launch.lore.trim().length > 0) {
-    const cleanLore = escapeHtml(launch.lore.trim()).slice(0, 140);
-    lines.push(`<i>"${cleanLore}${launch.lore.length > 140 ? '...' : ''}"</i>`);
-  }
 
   const caption = lines.join('\n');
 
