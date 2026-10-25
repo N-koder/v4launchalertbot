@@ -192,7 +192,7 @@ class LaunchScanner {
     for (const launch of chronological) {
       if (!launch.address) continue;
 
-      const alreadySeen = store.hasSeen(platformKey, launch.address);
+      const alreadySeen = store.hasSeen(platformKey, launch.address, launch.slug);
       if (alreadySeen) {
         // Token already alerted — update dashboard stats without spamming Telegram
         store.addRecentLaunch(launch, true);
@@ -202,7 +202,7 @@ class LaunchScanner {
         const ageMs = launch.launchedAtMs ? Date.now() - launch.launchedAtMs : 0;
 
         if (!isInitialized || ageMs > MAX_LAUNCH_AGE_MS) {
-          store.markSeen(platformKey, launch.address);
+          store.markSeen(platformKey, launch.address, launch.slug);
           store.addRecentLaunch(launch, false);
         } else {
           newFound++;
@@ -212,7 +212,7 @@ class LaunchScanner {
           );
 
           // Mark seen and save to dashboard immediately
-          store.markSeen(platformKey, launch.address);
+          store.markSeen(platformKey, launch.address, launch.slug);
           store.addRecentLaunch(launch, false);
 
           // ⚡ ZERO-LATENCY INSTANT DISPATCH (0ms delay!)

@@ -792,14 +792,31 @@ async function fetchPangea() {
     .slice(0, 25);
 
   const results = newest.map((item) => {
-    // Find canonical EVM token address (0x...) across ethereum, base, bsc, robinhood
-    const evmPool = item.pools?.find(
-      (p) =>
-        (p.chain === 'ethereum' || p.chain === 'base' || p.chain === 'bsc' || p.chain === 'robinhood') &&
-        p.token?.startsWith('0x')
-    );
-    const mainPool = evmPool || item.pools?.find((p) => p.token) || item.pools?.[0];
-    const ca = evmPool?.token || mainPool?.token || item.slug;
+    // Extract all per-chain token addresses
+    const chainCAs = {};
+    (item.pools || []).forEach((p) => {
+      if (p.chain && p.token) {
+        chainCAs[p.chain.toLowerCase()] = p.token;
+      }
+    });
+
+    const ethAddress = chainCAs.ethereum || null;
+    const baseAddress = chainCAs.base || null;
+    const bscAddress = chainCAs.bsc || null;
+    const rhAddress = chainCAs.robinhood || null;
+    const solanaAddress = chainCAs.solana || null;
+
+    const evmList = [ethAddress, baseAddress, bscAddress, rhAddress].filter(Boolean);
+    const uniqueEvmCAs = [...new Set(evmList.map((a) => a.toLowerCase()))];
+    const isSameEvmAddress = uniqueEvmCAs.length <= 1;
+
+    // Prefer Ethereum address as primary, then Base, BSC, Robinhood, Solana
+    const primaryCa = ethAddress || baseAddress || bscAddress || rhAddress || solanaAddress || item.slug;
+    const mainPool =
+      item.pools?.find((p) => p.chain === 'ethereum' && p.token) ||
+      item.pools?.find((p) => p.chain === 'base' && p.token) ||
+      item.pools?.find((p) => p.token) ||
+      item.pools?.[0];
 
     // Build human-friendly multi-chain display (ETH, Base, BSC, Robinhood, Solana)
     const rawChains = item.launchChains?.length
@@ -817,9 +834,6 @@ async function fetchPangea() {
     });
     const uniqueChains = [...new Set(mappedChains)];
     const chainsList = uniqueChains.join(' • ') || 'ETH • Base • BSC • Robinhood';
-
-    const solanaPool = item.pools?.find((p) => p.chain === 'solana' && p.token);
-    const solanaAddress = solanaPool?.token || null;
 
     const priceUsd = mainPool?.priceUsd || item.cheapest?.usd || null;
     const supply = Number(item.capSupply || item.supply?.total || 1000000000);
@@ -847,16 +861,24 @@ async function fetchPangea() {
 
     const launchedAtMs = item.listedAt ? item.listedAt * 1000 : Date.now();
 
+    const ca = primaryCa;
     return {
       platformKey: 'pangea',
       platformName: 'Pangea.trade',
       platformBadge: '🌐 PANGEA',
       platformColor: '#06b6d4',
+      slug: item.slug,
       chainName: `🌐 Omnichain (${chainsList})`,
       chainsList,
+      isSameEvmAddress,
+      chainCAs,
+      ethAddress,
+      baseAddress,
+      bscAddress,
+      rhAddress,
       solanaAddress,
       chainId: 1,
-      address: ca,
+      address: primaryCa,
       name: item.name || 'Unknown',
       symbol: item.symbol || '???',
       image: image || 'https://www.pangea.trade/branding/pangea-mark-256.png',

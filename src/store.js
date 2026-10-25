@@ -166,16 +166,25 @@ class Store {
     }
   }
 
-  makeKey(platformKey, address) {
+  makeKey(platformKey, address, slug = null) {
+    if (platformKey === 'pangea' && slug) {
+      return `pangea:slug:${String(slug).toLowerCase()}`;
+    }
     return `${platformKey}:${String(address).toLowerCase()}`;
   }
 
-  hasSeen(platformKey, address) {
+  hasSeen(platformKey, address, slug = null) {
+    if (platformKey === 'pangea' && slug) {
+      if (this.state.seenTokens[`pangea:slug:${String(slug).toLowerCase()}`]) return true;
+    }
     const key = this.makeKey(platformKey, address);
     return Boolean(this.state.seenTokens[key]);
   }
 
-  markSeen(platformKey, address) {
+  markSeen(platformKey, address, slug = null) {
+    if (platformKey === 'pangea' && slug) {
+      this.state.seenTokens[`pangea:slug:${String(slug).toLowerCase()}`] = Date.now();
+    }
     const key = this.makeKey(platformKey, address);
     this.state.seenTokens[key] = Date.now();
   }
@@ -191,7 +200,13 @@ class Store {
 
   addRecentLaunch(launch, alerted = false) {
     const existsIdx = this.state.recentLaunches.findIndex(
-      (x) => x.address.toLowerCase() === launch.address.toLowerCase() && x.platformKey === launch.platformKey
+      (x) =>
+        (launch.platformKey === 'pangea' &&
+          x.platformKey === 'pangea' &&
+          x.slug &&
+          launch.slug &&
+          x.slug.toLowerCase() === launch.slug.toLowerCase()) ||
+        (x.address.toLowerCase() === launch.address.toLowerCase() && x.platformKey === launch.platformKey)
     );
     const existing = existsIdx !== -1 ? this.state.recentLaunches[existsIdx] : {};
     const mergedSocials = {
