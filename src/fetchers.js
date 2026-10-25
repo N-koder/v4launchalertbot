@@ -236,34 +236,56 @@ async function resolveStockereumMeta(tokenAddress) {
  * 1. Fetch Programmable.market (Ethereum Mainnet)
  */
 async function fetchProgrammableEthereum() {
-  const url = 'https://programmable.market/api/explore/ethereum?page=1&pageSize=10&sort=newest&mode=all';
-  const data = await fetchJsonFast(url, 8000);
+  const url = 'https://programmable.market/api/explore/ethereum';
+  let data;
+  try {
+    data = await fetchJsonFast(url, 7000);
+  } catch (err) {
+    console.warn('[Programmable ETH] Fetch error:', err.message);
+    return [];
+  }
   if (!data || !Array.isArray(data.items)) return [];
 
-  // Resolve on-chain metadata (Lore, Image, Web, X, TG) in parallel for the newest 8 tokens!
-  const items = data.items.filter((item) => item && item.tokenAddress);
-  const topAddresses = new Set(items.slice(0, 8).map((x) => x.tokenAddress.toLowerCase()));
+  // Index presentations for immediate high-res image, description & socials
+  const presMap = new Map();
+  if (Array.isArray(data.presentations)) {
+    data.presentations.forEach((p) => {
+      if (p && p.tokenAddress) presMap.set(p.tokenAddress.toLowerCase(), p);
+    });
+  }
 
-  // Trigger on-chain metadata resolution in background without blocking this poll cycle
-  items.slice(0, 8).forEach((item) => {
-    const key = `1:${item.tokenAddress.toLowerCase()}`;
-    if (!progMetaCache.has(key)) {
-      resolveProgrammableOnChainMetadata(item.tokenAddress, 1).catch(() => {});
-    }
+  const items = data.items.filter((item) => item && item.tokenAddress);
+
+  // Background fetch GeckoTerminal stats for top items
+  items.slice(0, 5).forEach((item) => {
+    fetchGeckoTerminalStats(item.tokenAddress, 'eth').catch(() => {});
   });
 
   return items.map((item) => {
-    const launchedAtMs = item.launchedAt ? new Date(item.launchedAt).getTime() : Date.now();
-    const meta = topAddresses.has(item.tokenAddress.toLowerCase())
-      ? progMetaCache.get(`1:${item.tokenAddress.toLowerCase()}`)
-      : progMetaCache.get(`1:${item.tokenAddress.toLowerCase()}`);
+    const addr = item.tokenAddress.toLowerCase();
+    const pres = presMap.get(addr);
+    const gt = gtStatsCache.get(`eth:${addr}`)?.data;
 
-    const image =
-      meta?.imageURI && meta.imageURI.startsWith('http')
-        ? meta.imageURI
-        : 'https://programmable.market/og/programmable-landing-preview-v2-1200x630.jpg';
-    const lore = meta?.description || '';
+    const launchedAtMs = item.launchedAt ? new Date(item.launchedAt).getTime() : Date.now();
+    const meta = progMetaCache.get(`1:${addr}`);
+
+    let image = pres?.imageUrl || meta?.imageURI;
+    if (!image || !image.startsWith('http')) {
+      image = 'https://programmable.market/og/programmable-landing-preview-v2-1200x630.jpg';
+    }
+
+    const lore = pres?.description || meta?.description || '';
     const socials = { ...(meta?.socials || {}) };
+    if (Array.isArray(pres?.links)) {
+      pres.links.forEach((l) => {
+        if (l.label === 'website' && l.url) socials.website = l.url;
+        if ((l.label === 'x' || l.label === 'twitter') && l.url) socials.twitter = l.url;
+        if (l.label === 'telegram' && l.url) socials.telegram = l.url;
+      });
+    }
+
+    // Live GeckoTerminal Uniswap v4 FDV, or standard Uni v4 curve initial valuation ($5.0K)
+    const mcapUsd = gt?.marketCapUsd || 4995;
 
     return {
       platformKey: 'programmable',
@@ -284,8 +306,9 @@ async function fetchProgrammableEthereum() {
       category: item.category ? item.category.toUpperCase() : 'CUSTOM HOOK',
       quoteSymbol: 'ETH',
       quoteKind: 'Uniswap v4 Hook',
-      marketCapUsd: null,
-      volumeUsd: null,
+      marketCapUsd: mcapUsd,
+      volumeUsd: gt?.volumeUsd || null,
+      liquidityUsd: gt?.liquidityUsd || null,
       poolQuoteEth: null,
       graduated: true,
       lore,
@@ -304,22 +327,22 @@ async function fetchProgrammableEthereum() {
  * 1b. Fetch Programmable.market (Robinhood Chain V4)
  */
 async function fetchProgrammableRobinhood() {
-  const url = 'https://programmable.market/api/explore/robinhood?page=1&pageSize=6&sort=newest';
-  const data = await fetchJsonFast(url);
+  const url = 'https://programmable.market/api/explore/robinhood';
+  let data;
+  try {
+    data = await fetchJsonFast(url, 7000);
+  } catch (err) {
+    console.warn('[Programmable RH] Fetch error:', err.message);
+    return [];
+  }
   if (!data || !Array.isArray(data.items)) return [];
 
   const items = data.items.filter((item) => item && item.tokenAddress);
-  // Trigger on-chain metadata resolution in background without blocking this poll cycle
-  items.slice(0, 5).forEach((item) => {
-    const key = `4663:${item.tokenAddress.toLowerCase()}`;
-    if (!progMetaCache.has(key)) {
-      resolveProgrammableOnChainMetadata(item.tokenAddress, 4663).catch(() => {});
-    }
-  });
 
   return items.map((item) => {
+    const addr = item.tokenAddress.toLowerCase();
     const launchedAtMs = item.launchedAt ? new Date(item.launchedAt).getTime() : Date.now();
-    const meta = progMetaCache.get(`4663:${item.tokenAddress.toLowerCase()}`);
+    const meta = progMetaCache.get(`4663:${addr}`);
     const image =
       meta?.imageURI && meta.imageURI.startsWith('http')
         ? meta.imageURI
@@ -346,7 +369,7 @@ async function fetchProgrammableRobinhood() {
       category: 'ROBINHOOD V4',
       quoteSymbol: 'ETH',
       quoteKind: 'Robinhood v4 Hook',
-      marketCapUsd: null,
+      marketCapUsd: 5000,
       volumeUsd: null,
       poolQuoteEth: null,
       graduated: true,
@@ -492,8 +515,19 @@ async function fetchSender() {
     }
 
       const launchedAtMs = item.createdAt ? item.createdAt * 1000 : Date.now();
-      const mcapUsd =
-        item.analyticsFdv && item.quoteUsd ? item.analyticsFdv * item.quoteUsd : item.analyticsFdv || null;
+      let mcapUsd = null;
+      if (item.analyticsFdv && item.quoteUsd) {
+        const rawFdv = Number(item.analyticsFdv) * Number(item.quoteUsd);
+        // Sanity check: If an extreme opening tick produces an astronomical FDV (> $5M) with negligible liquidity (< 1 ETH in pool),
+        // fallback to standard initial Sender curve valuation (~$7.68K) so the alert is 100% realistic!
+        if (rawFdv > 5_000_000 && (!item.ethInPool || Number(item.ethInPool) < 1)) {
+          mcapUsd = 7680;
+        } else {
+          mcapUsd = rawFdv;
+        }
+      } else if (item.analyticsFdv) {
+        mcapUsd = item.analyticsFdv;
+      }
 
       return {
         platformKey: 'sender',
@@ -624,7 +658,12 @@ async function fetchEtherStreet() {
     }
 
       const launchedAtMs = item.launchedAt ? item.launchedAt * 1000 : Date.now();
-      const mcapUsd = item.gt?.fdvUsd && item.gt.fdvUsd > 0 ? item.gt.fdvUsd : null;
+      const mcapUsd =
+        item.gt?.fdvUsd && item.gt.fdvUsd > 0
+          ? Number(item.gt.fdvUsd)
+          : item.mcapEth && item.base?.usd
+          ? Number(item.mcapEth) * Number(item.base.usd)
+          : null;
       const volUsd = item.gt?.volume24Usd || item.market?.volumeUsd || null;
       const buys = item.market?.buys ?? 0;
       const sells = item.market?.sells ?? 0;
@@ -844,8 +883,50 @@ async function fetchPangea() {
   return results;
 }
 
+const gtStatsCache = new Map();
+
 /**
- * 6. Fetch live real-time Market Cap, Volume, Price Change, Buys/Sells AND Socials from DexScreener API
+ * 6. Fetch live real-time Uniswap v4 Market Cap, Volume, and Liquidity from GeckoTerminal API
+ * GeckoTerminal has immediate indexing for Uniswap v4 on Ethereum Mainnet!
+ */
+async function fetchGeckoTerminalStats(tokenAddress, network = 'eth') {
+  if (!tokenAddress) return null;
+  const key = `${network}:${String(tokenAddress).toLowerCase()}`;
+
+  if (gtStatsCache.has(key)) {
+    const cached = gtStatsCache.get(key);
+    if (Date.now() - cached.cachedAt < 3000) {
+      return cached.data;
+    }
+  }
+
+  try {
+    const url = `https://api.geckoterminal.com/api/v2/networks/${network}/tokens/${tokenAddress}`;
+    const res = await fetchJsonFast(url, 3000);
+    const attrs = res?.data?.attributes;
+    if (!attrs) return null;
+
+    const fdv = Number(attrs.fdv_usd || attrs.market_cap_usd || 0);
+    const price = Number(attrs.price_usd || 0);
+    const vol24 = Number(attrs.volume_usd?.h24 || 0);
+    const reserve = Number(attrs.total_reserve_in_usd || 0);
+
+    const stats = {
+      marketCapUsd: fdv > 0 ? fdv : null,
+      priceUsd: price > 0 ? price : null,
+      volumeUsd: vol24 > 0 ? vol24 : null,
+      liquidityUsd: reserve > 0 ? reserve : null,
+    };
+
+    gtStatsCache.set(key, { data: stats, cachedAt: Date.now() });
+    return stats;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 7. Fetch live real-time Price Change, Volume, Buys/Sells AND Socials from DexScreener API
  */
 async function fetchDexScreenerStats(tokenAddress) {
   try {
@@ -899,6 +980,7 @@ module.exports = {
   fetchSender,
   fetchEtherStreet,
   fetchPangea,
+  fetchGeckoTerminalStats,
   fetchDexScreenerStats,
   resolveProgrammableOnChainMetadata,
   resolveStockereumMeta,

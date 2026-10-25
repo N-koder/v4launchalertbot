@@ -7,6 +7,7 @@ const {
   fetchSender,
   fetchEtherStreet,
   fetchPangea,
+  fetchGeckoTerminalStats,
   fetchDexScreenerStats,
 } = require('./fetchers');
 
@@ -76,26 +77,49 @@ class LaunchScanner {
     }
 
     for (const [, baseLaunch] of targetsMap.entries()) {
+      // 1. Fetch live GeckoTerminal stats (real-time Uniswap v4 pool indexing)
+      const gtStats = await fetchGeckoTerminalStats(baseLaunch.address);
+
+      // 2. Fetch DexScreener stats (for 5m price change, buys/sells, socials)
       const dexStats = await fetchDexScreenerStats(baseLaunch.address);
-      if (dexStats) {
+
+      // Priority for Market Cap:
+      // Keep direct launchpad MC if valid; otherwise use GeckoTerminal live FDV; then DexScreener
+      let bestMcap = baseLaunch.marketCapUsd;
+      if (!bestMcap || bestMcap <= 0) {
+        if (gtStats?.marketCapUsd && gtStats.marketCapUsd > 0) {
+          bestMcap = gtStats.marketCapUsd;
+        } else if (dexStats?.marketCapUsd && dexStats.marketCapUsd > 0) {
+          bestMcap = dexStats.marketCapUsd;
+        }
+      } else if (gtStats?.marketCapUsd && gtStats.marketCapUsd > 0 && baseLaunch.platformKey === 'programmable') {
+        // For programmable, update with live GeckoTerminal FDV as trades happen
+        bestMcap = gtStats.marketCapUsd;
+      }
+
+      // Best Volume:
+      const bestVol =
+        gtStats?.volumeUsd || dexStats?.volumeUsd || baseLaunch.volumeUsd || null;
+
+      if (gtStats || dexStats) {
         const merged = {
           ...baseLaunch,
           image:
             baseLaunch.image && !baseLaunch.image.includes('programmable-landing-preview')
               ? baseLaunch.image
-              : dexStats.image || baseLaunch.image,
+              : dexStats?.image || baseLaunch.image,
           socials: {
-            ...(dexStats.socials || {}),
+            ...(dexStats?.socials || {}),
             ...(baseLaunch.socials || {}),
           },
-          marketCapUsd: dexStats.marketCapUsd ?? baseLaunch.marketCapUsd,
-          volumeUsd: dexStats.volumeUsd ?? baseLaunch.volumeUsd,
-          priceChange5m: dexStats.priceChange5m,
-          buys: dexStats.buys,
-          sells: dexStats.sells,
-          trades: dexStats.trades || baseLaunch.trades,
-          liquidityUsd: dexStats.liquidityUsd,
-          poolQuoteEth: dexStats.poolQuoteEth ?? baseLaunch.poolQuoteEth,
+          marketCapUsd: bestMcap,
+          volumeUsd: bestVol,
+          priceChange5m: dexStats?.priceChange5m ?? baseLaunch.priceChange5m,
+          buys: dexStats?.buys ?? baseLaunch.buys,
+          sells: dexStats?.sells ?? baseLaunch.sells,
+          trades: dexStats?.trades || baseLaunch.trades,
+          liquidityUsd: gtStats?.liquidityUsd || dexStats?.liquidityUsd || baseLaunch.liquidityUsd,
+          poolQuoteEth: dexStats?.poolQuoteEth ?? baseLaunch.poolQuoteEth,
         };
         store.addRecentLaunch(merged, true);
         await alertBot.updateLiveAlertMessages(merged);
