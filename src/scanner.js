@@ -218,12 +218,23 @@ class LaunchScanner {
           // ⚡ ZERO-LATENCY INSTANT DISPATCH (0ms delay!)
           // Send the alert IMMEDIATELY so our bot beats competitors like @sendtrench!
           (async () => {
-            let sent = await alertBot.sendLaunchAlert(launch);
+            let dispatchLaunch = launch;
+            // For Pangea: if Ethereum or Base pool is still confirming on-chain, wait 2s and re-fetch to ensure all CAs are complete
+            if (platformKey === 'pangea' && (!dispatchLaunch.ethAddress || !dispatchLaunch.baseAddress)) {
+              await new Promise((r) => setTimeout(r, 2000));
+              try {
+                const freshPangea = await fetchPangea();
+                const matched = freshPangea.find((x) => x.slug === launch.slug);
+                if (matched) dispatchLaunch = matched;
+              } catch (_) {}
+            }
+
+            let sent = await alertBot.sendLaunchAlert(dispatchLaunch);
             if (!sent) {
               await new Promise((r) => setTimeout(r, 2000));
-              sent = await alertBot.sendLaunchAlert(launch);
+              sent = await alertBot.sendLaunchAlert(dispatchLaunch);
             }
-            store.addRecentLaunch(launch, sent);
+            store.addRecentLaunch(dispatchLaunch, sent);
             if (sent) store.incrementAlertStat(platformKey);
 
             // In background, query DexScreener to enrich live alert message with volume & market cap once indexed

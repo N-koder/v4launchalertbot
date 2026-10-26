@@ -106,15 +106,21 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   if (isPangea) {
     lines.push(``);
     lines.push(`🔗 <b>Multi-Chain Contracts:</b>`);
-    const ethCa = launch.ethAddress || ca;
-    const baseCa = launch.baseAddress || ca;
-    const bscCa = launch.bscAddress || ca;
-    const rhCa = launch.rhAddress || ca;
 
-    if (ethCa) lines.push(`<b>ETH:</b>  <code>${ethCa}</code>  <a href="${makeMaestroUrl(ethCa)}">[Maestro]</a>`);
-    if (baseCa) lines.push(`<b>BASE:</b> <code>${baseCa}</code>  <a href="${makeMaestroUrl(baseCa)}">[Maestro]</a>`);
-    if (bscCa) lines.push(`<b>BSC:</b>  <code>${bscCa}</code>  <a href="${makeMaestroUrl(bscCa)}">[Maestro]</a>`);
-    if (rhCa) lines.push(`<b>RH:</b>   <code>${rhCa}</code>  <a href="${makeMaestroUrl(rhCa)}">[Maestro]</a>`);
+    // If CREATE2 deployed the exact same contract address on all EVM chains:
+    if (launch.isSameEvmAddress && launch.ethAddress) {
+      const uCa = launch.ethAddress;
+      lines.push(`<b>ETH:</b>  <code>${uCa}</code>  <a href="${makeMaestroUrl(uCa)}">[Maestro]</a>`);
+      lines.push(`<b>BASE:</b> <code>${uCa}</code>  <a href="${makeMaestroUrl(uCa)}">[Maestro]</a>`);
+      lines.push(`<b>BSC:</b>  <code>${uCa}</code>  <a href="${makeMaestroUrl(uCa)}">[Maestro]</a>`);
+      if (launch.rhAddress) lines.push(`<b>RH:</b>   <code>${launch.rhAddress}</code>  <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
+    } else {
+      // Distinct per-chain contract addresses: each chain strictly shows its own CA!
+      if (launch.ethAddress) lines.push(`<b>ETH:</b>  <code>${launch.ethAddress}</code>  <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
+      if (launch.baseAddress) lines.push(`<b>BASE:</b> <code>${launch.baseAddress}</code>  <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
+      if (launch.bscAddress) lines.push(`<b>BSC:</b>  <code>${launch.bscAddress}</code>  <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
+      if (launch.rhAddress) lines.push(`<b>RH:</b>   <code>${launch.rhAddress}</code>  <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
+    }
     if (launch.solanaAddress) lines.push(`<b>SOL:</b>  <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
   } else {
     // Single-chain launches: clean CA without [Maestro] link beside it (the Maestro button is below!)

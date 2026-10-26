@@ -808,7 +808,7 @@ async function fetchPangea() {
 
     const evmList = [ethAddress, baseAddress, bscAddress, rhAddress].filter(Boolean);
     const uniqueEvmCAs = [...new Set(evmList.map((a) => a.toLowerCase()))];
-    const isSameEvmAddress = uniqueEvmCAs.length <= 1;
+    const isSameEvmAddress = evmList.length >= 3 && uniqueEvmCAs.length === 1;
 
     // Prefer Ethereum address as primary, then Base, BSC, Robinhood, Solana
     const primaryCa = ethAddress || baseAddress || bscAddress || rhAddress || solanaAddress || item.slug;
