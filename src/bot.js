@@ -704,7 +704,7 @@ class AlertBot {
       if (!sentMsg) {
         sentMsg = await this.bot.sendMessage(targetChatId, caption, {
           parse_mode: 'HTML',
-          disable_web_page_preview: false,
+          disable_web_page_preview: true,
           reply_markup: replyMarkup,
         });
         sentAsPhoto = false;

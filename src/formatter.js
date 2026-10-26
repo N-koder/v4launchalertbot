@@ -105,21 +105,17 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
 
   if (isPangea) {
     lines.push(``);
-    if (launch.isSameEvmAddress) {
-      lines.push(`🔗 <b>Multi-Chain Contracts:</b>`);
-      lines.push(`<code>${ca}</code>  <a href="${makeMaestroUrl(ca)}">[Maestro]</a>`);
-      lines.push(`<i>Omnichain: ETH · Base · BSC · Robinhood</i>`);
-      if (launch.solanaAddress && launch.solanaAddress !== ca) {
-        lines.push(`<b>SOL:</b>  <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
-      }
-    } else {
-      lines.push(`🔗 <b>Multi-Chain Contracts:</b>`);
-      if (launch.ethAddress) lines.push(`<b>ETH:</b>  <code>${launch.ethAddress}</code>  <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
-      if (launch.baseAddress) lines.push(`<b>BASE:</b> <code>${launch.baseAddress}</code>  <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
-      if (launch.bscAddress) lines.push(`<b>BSC:</b>  <code>${launch.bscAddress}</code>  <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
-      if (launch.rhAddress) lines.push(`<b>RH:</b>   <code>${launch.rhAddress}</code>  <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
-      if (launch.solanaAddress) lines.push(`<b>SOL:</b>  <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
-    }
+    lines.push(`🔗 <b>Multi-Chain Contracts:</b>`);
+    const ethCa = launch.ethAddress || ca;
+    const baseCa = launch.baseAddress || ca;
+    const bscCa = launch.bscAddress || ca;
+    const rhCa = launch.rhAddress || ca;
+
+    if (ethCa) lines.push(`<b>ETH:</b>  <code>${ethCa}</code>  <a href="${makeMaestroUrl(ethCa)}">[Maestro]</a>`);
+    if (baseCa) lines.push(`<b>BASE:</b> <code>${baseCa}</code>  <a href="${makeMaestroUrl(baseCa)}">[Maestro]</a>`);
+    if (bscCa) lines.push(`<b>BSC:</b>  <code>${bscCa}</code>  <a href="${makeMaestroUrl(bscCa)}">[Maestro]</a>`);
+    if (rhCa) lines.push(`<b>RH:</b>   <code>${rhCa}</code>  <a href="${makeMaestroUrl(rhCa)}">[Maestro]</a>`);
+    if (launch.solanaAddress) lines.push(`<b>SOL:</b>  <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
   } else {
     // Single-chain launches: clean CA without [Maestro] link beside it (the Maestro button is below!)
     lines.push(``);
@@ -142,22 +138,20 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
 
   lines.push(``);
 
-  // Clean, classic Metrics Line
+  // Clean, complete Metrics Line
   const mcVal = Number(launch.marketCapUsd);
   const mcStr = mcVal > 0 ? formatUsd(mcVal) : 'Fresh Launch';
   const metrics = [`MC: <b>${mcStr}</b>`];
 
   const volVal = Number(launch.volumeUsd);
-  if (volVal > 0) {
-    metrics.push(`Vol: <b>${formatUsd(volVal)}</b>`);
-  }
+  const volStr = volVal > 0 ? formatUsd(volVal) : '$0.00';
+  metrics.push(`Vol: <b>${volStr}</b>`);
 
   const buysCount = launch.buys ?? 0;
   const sellsCount = launch.sells ?? 0;
   const totalTrades = launch.trades || buysCount + sellsCount || 0;
-  if (totalTrades > 0) {
-    metrics.push(`Txns: <b>${totalTrades}</b>`);
-  }
+  metrics.push(`Txns: <b>${totalTrades}</b>`);
+
   if (!isPangea && launch.chainName) {
     metrics.push(`Chain: <b>${escapeHtml(chainName.replace(/\s*\(.*\)/, ''))}</b>`);
   }
