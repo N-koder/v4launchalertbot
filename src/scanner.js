@@ -7,6 +7,7 @@ const {
   fetchSender,
   fetchEtherStreet,
   fetchPangea,
+  resolvePangeaMeta,
   fetchGeckoTerminalStats,
   fetchDexScreenerStats,
 } = require('./fetchers');
@@ -226,6 +227,25 @@ class LaunchScanner {
                 const freshPangea = await fetchPangea();
                 const matched = freshPangea.find((x) => x.slug === launch.slug);
                 if (matched) dispatchLaunch = matched;
+              } catch (_) {}
+            }
+
+            // If Pangea has metadataURI, resolve bio/image if not cached yet
+            if (platformKey === 'pangea' && dispatchLaunch.metadataURI && !dispatchLaunch.lore) {
+              try {
+                const meta = await resolvePangeaMeta(dispatchLaunch.metadataURI);
+                if (meta) {
+                  dispatchLaunch = {
+                    ...dispatchLaunch,
+                    image: meta.image || dispatchLaunch.image,
+                    lore: meta.description || dispatchLaunch.lore,
+                    description: meta.description || dispatchLaunch.description,
+                    socials: {
+                      ...(dispatchLaunch.socials || {}),
+                      ...(meta.socials || {}),
+                    },
+                  };
+                }
               } catch (_) {}
             }
 
