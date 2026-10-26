@@ -187,34 +187,36 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
     });
   }
 
-  lines.push(``);
-
-  // Footer Row 1: Charts & Search
   const dsUrl = launch.dexScreenerUrl || `https://dexscreener.com/ethereum/${ca}`;
-  const defUrl = `https://dexview.com/eth/${ca}`;
-  const searchXUrl = `https://x.com/search?q=${encodeURIComponent(ca)}`;
-  lines.push(
-    `📊: <a href="${dsUrl}">DS</a> • <a href="${defUrl}">DEF</a> • <a href="${launch.platformUrl}">${platformSlug}</a> • <a href="${searchXUrl}">Search X</a>`
-  );
-
-  // Footer Row 2: Trading Bot Deep Links
-  const bananaStart = settings.bananaRef ? `${ca}-${settings.bananaRef}` : ca;
-  const bananaUrl = `https://t.me/BananaGunSniper_bot?start=${bananaStart}`;
   const maestroUrl = makeMaestroUrl(ca);
   const sigmaStart = settings.sigmaRef ? `x-${settings.sigmaRef}-${ca}` : `x-${ca}`;
   const sigmaUrl = `https://t.me/Sigma_buyBot?start=${sigmaStart}`;
-  const bloomUrl = `https://t.me/BloomSolana_bot?start=${ca}`;
-  const fomoUrl = `https://t.me/fomobuybot?start=${ca}`;
 
-  lines.push(
-    `🤖: <a href="${bananaUrl}">BSDW</a> • <a href="${maestroUrl}">GM</a> • <a href="${sigmaUrl}">SIG</a> • <a href="${bloomUrl}">BSD</a> • <a href="${fomoUrl}">FOMO</a>`
-  );
+  const platformButtonText = isPangea
+    ? '🏛 Pangea App'
+    : (launch.platformName ? `🏛 ${launch.platformName}` : '🏛 App');
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        { text: '⚡ Maestro', url: maestroUrl },
+        { text: '∑ Sigma', url: sigmaUrl },
+      ],
+      [
+        { text: '📈 DexScreener', url: dsUrl },
+        {
+          text: platformButtonText,
+          url: launch.platformUrl || dsUrl,
+        },
+      ],
+    ],
+  };
 
   const caption = lines.join('\n');
 
   return {
     caption,
-    replyMarkup: undefined,
+    replyMarkup,
     tradingLinks: {
       maestroUrl,
       sigmaUrl,
