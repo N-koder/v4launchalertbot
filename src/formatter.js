@@ -125,14 +125,16 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   // Line 2: Contract Address(es)
   if (isPangea) {
     if (launch.isSameEvmAddress && launch.ethAddress) {
-      lines.push(`CA: <code>${launch.ethAddress}</code>`);
-      if (launch.solanaAddress) lines.push(`Sol: <code>${launch.solanaAddress}</code>`);
+      lines.push(`CA: <code>${launch.ethAddress}</code> · <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
+      if (launch.solanaAddress) {
+        lines.push(`Sol: <code>${launch.solanaAddress}</code> · <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
+      }
     } else {
-      lines.push(`CA: <code>${launch.ethAddress || ca}</code>`);
-      if (launch.baseAddress) lines.push(`Base: <code>${launch.baseAddress}</code>`);
-      if (launch.bscAddress) lines.push(`BSC: <code>${launch.bscAddress}</code>`);
-      if (launch.rhAddress) lines.push(`RH: <code>${launch.rhAddress}</code>`);
-      if (launch.solanaAddress) lines.push(`Sol: <code>${launch.solanaAddress}</code>`);
+      lines.push(`CA: <code>${launch.ethAddress || ca}</code> · <a href="${makeMaestroUrl(launch.ethAddress || ca)}">[Maestro]</a>`);
+      if (launch.baseAddress) lines.push(`Base: <code>${launch.baseAddress}</code> · <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
+      if (launch.bscAddress) lines.push(`BSC: <code>${launch.bscAddress}</code> · <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
+      if (launch.rhAddress) lines.push(`RH: <code>${launch.rhAddress}</code> · <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
+      if (launch.solanaAddress) lines.push(`Sol: <code>${launch.solanaAddress}</code> · <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
     }
   } else {
     lines.push(`CA: <code>${ca}</code>`);
@@ -196,20 +198,51 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
     ? '🏛 Pangea App'
     : (launch.platformName ? `🏛 ${launch.platformName}` : '🏛 App');
 
+  const keyboard = [];
+
+  if (isPangea) {
+    if (launch.isSameEvmAddress && launch.ethAddress) {
+      const row1 = [{ text: '⚡ Maestro (EVM)', url: makeMaestroUrl(launch.ethAddress) }];
+      if (launch.solanaAddress) {
+        row1.push({ text: '⚡ Maestro (SOL)', url: makeMaestroUrl(launch.solanaAddress) });
+      } else {
+        row1.push({ text: '∑ Sigma', url: sigmaUrl });
+      }
+      keyboard.push(row1);
+    } else {
+      const row1 = [];
+      if (launch.ethAddress || ca) row1.push({ text: '⚡ Maestro (ETH)', url: makeMaestroUrl(launch.ethAddress || ca) });
+      if (launch.baseAddress) row1.push({ text: '⚡ Maestro (Base)', url: makeMaestroUrl(launch.baseAddress) });
+      if (row1.length > 0) keyboard.push(row1);
+
+      const row2 = [];
+      if (launch.bscAddress) row2.push({ text: '⚡ Maestro (BSC)', url: makeMaestroUrl(launch.bscAddress) });
+      if (launch.solanaAddress) {
+        row2.push({ text: '⚡ Maestro (SOL)', url: makeMaestroUrl(launch.solanaAddress) });
+      } else if (launch.rhAddress) {
+        row2.push({ text: '⚡ Maestro (RH)', url: makeMaestroUrl(launch.rhAddress) });
+      } else {
+        row2.push({ text: '∑ Sigma', url: sigmaUrl });
+      }
+      if (row2.length > 0) keyboard.push(row2);
+    }
+  } else {
+    keyboard.push([
+      { text: '⚡ Maestro', url: maestroUrl },
+      { text: '∑ Sigma', url: sigmaUrl },
+    ]);
+  }
+
+  keyboard.push([
+    { text: '📈 DexScreener', url: dsUrl },
+    {
+      text: platformButtonText,
+      url: launch.platformUrl || dsUrl,
+    },
+  ]);
+
   const replyMarkup = {
-    inline_keyboard: [
-      [
-        { text: '⚡ Maestro', url: maestroUrl },
-        { text: '∑ Sigma', url: sigmaUrl },
-      ],
-      [
-        { text: '📈 DexScreener', url: dsUrl },
-        {
-          text: platformButtonText,
-          url: launch.platformUrl || dsUrl,
-        },
-      ],
-    ],
+    inline_keyboard: keyboard,
   };
 
   const caption = lines.join('\n');
