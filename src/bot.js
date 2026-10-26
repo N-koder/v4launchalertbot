@@ -827,13 +827,10 @@ class AlertBot {
       targets.add(channelId.trim());
     }
 
-    // If channel is configured, broadcast directly to the Channel without spamming private DMs!
-    const enableDmAlerts = process.env.ENABLE_DM_ALERTS === 'true';
-    if (enableDmAlerts || targets.size === 0) {
-      const subs = store.getActiveSubscribersForPlatform(launch.platformKey);
-      for (const sub of subs) {
-        targets.add(String(sub.chatId));
-      }
+    // Broadcast to configured Telegram Channel AND all active Bot DM subscribers!
+    const subs = store.getActiveSubscribersForPlatform(launch.platformKey);
+    for (const sub of subs) {
+      targets.add(String(sub.chatId));
     }
 
     if (targets.size === 0) {
