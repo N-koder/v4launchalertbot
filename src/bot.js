@@ -824,13 +824,14 @@ class AlertBot {
 
     const channelId = store.state.settings.channelId;
     if (channelId && channelId !== '@your_channel_here' && channelId.trim() !== '') {
+      // Channel-only mode: broadcast alerts exclusively to the Telegram Channel!
       targets.add(channelId.trim());
-    }
-
-    // Broadcast to configured Telegram Channel AND all active Bot DM subscribers!
-    const subs = store.getActiveSubscribersForPlatform(launch.platformKey);
-    for (const sub of subs) {
-      targets.add(String(sub.chatId));
+    } else {
+      // Fallback: if no channel is configured, send to active subscribers
+      const subs = store.getActiveSubscribersForPlatform(launch.platformKey);
+      for (const sub of subs) {
+        targets.add(String(sub.chatId));
+      }
     }
 
     if (targets.size === 0) {
