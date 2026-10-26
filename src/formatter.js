@@ -119,25 +119,17 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   };
 
   const lines = [];
-  // Line 1: Header matching classic Phanes layout
-  lines.push(`<b>${name}</b> (<i>${symbol}/${pair}</i>) · blk: ${block} · #${hashtag}`);
+  // Line 1: Header
+  const blockPart = launch.blockNumber ? ` · blk: ${launch.blockNumber}` : '';
+  lines.push(`<b>${name}</b> (<i>${symbol}/${pair}</i>)${blockPart} · #${hashtag}`);
 
-  // Line 2: Contract Address(es)
-  if (isPangea) {
-    if (launch.isSameEvmAddress && launch.ethAddress) {
-      lines.push(`CA: <code>${launch.ethAddress}</code> · <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
-      if (launch.solanaAddress) {
-        lines.push(`Sol: <code>${launch.solanaAddress}</code> · <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
-      }
-    } else {
-      lines.push(`CA: <code>${launch.ethAddress || ca}</code> · <a href="${makeMaestroUrl(launch.ethAddress || ca)}">[Maestro]</a>`);
-      if (launch.baseAddress) lines.push(`Base: <code>${launch.baseAddress}</code> · <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
-      if (launch.bscAddress) lines.push(`BSC: <code>${launch.bscAddress}</code> · <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
-      if (launch.rhAddress) lines.push(`RH: <code>${launch.rhAddress}</code> · <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
-      if (launch.solanaAddress) lines.push(`Sol: <code>${launch.solanaAddress}</code> · <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
-    }
-  } else {
-    lines.push(`CA: <code>${ca}</code>`);
+  // Line 2: Universal Contract Address
+  const universalCa = launch.ethAddress || ca;
+  lines.push(`CA: <code>${universalCa}</code>`);
+
+  // Line 2b: Active Chains (for omnichain)
+  if (isPangea && launch.chainsList) {
+    lines.push(`Chains: ${launch.chainsList}`);
   }
 
   // Line 3: Deployer
@@ -159,6 +151,50 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
     rewards = launch.feePct ? `${launch.feePct} for creator` : '67% for creator';
   }
   lines.push(`Rewards: ${rewards}`);
+
+  // Line 6: Verified Real-Time Stats (MC, Liquidity, Volume, Trades)
+  const stats = [];
+  const mcVal = Number(launch.marketCapUsd);
+  if (mcVal > 0) {
+    stats.push(`MC: <b>${formatUsd(mcVal)}</b>`);
+  }
+  const liqVal = Number(launch.poolQuoteEth);
+  if (liqVal > 0) {
+    const quoteSym = escapeHtml(launch.quoteSymbol || 'ETH');
+    const liqStr =
+      liqVal >= 100
+        ? Math.round(liqVal).toLocaleString()
+        : liqVal >= 1
+        ? liqVal.toFixed(2)
+        : liqVal.toFixed(3);
+    stats.push(`Liq: <b>${liqStr} ${quoteSym}</b>`);
+  }
+  const volVal = Number(launch.volumeUsd);
+  if (volVal > 0) {
+    stats.push(`Vol: <b>${formatUsd(volVal)}</b>`);
+  }
+  const txnCount = Number(launch.trades || 0);
+  if (txnCount > 0) {
+    stats.push(`Txns: <b>${txnCount}</b>`);
+  }
+  if (stats.length > 0) {
+    lines.push(``);
+    lines.push(`📊 Stats: ${stats.join(' • ')}`);
+  }
+
+  // Line 7: Lore / Token Narrative (if genuine)
+  const loreText = (launch.lore || launch.description || '').trim();
+  if (
+    loreText &&
+    !loreText.startsWith('Launched on') &&
+    !loreText.startsWith('Create a fixed-supply') &&
+    !loreText.startsWith('Paired with') &&
+    !loreText.startsWith('Omnichain Uniswap v4 launch on Pangea.trade deployed across')
+  ) {
+    const cleanLore = escapeHtml(loreText).slice(0, 240);
+    lines.push(``);
+    lines.push(`📖 Lore: <i>"${cleanLore}${loreText.length > 240 ? '...' : ''}"</i>`);
+  }
 
   // Social section (if available)
   const socialItems = [];
