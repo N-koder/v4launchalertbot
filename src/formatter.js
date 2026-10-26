@@ -89,9 +89,29 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   const ca = launch.address;
   const name = escapeHtml(launch.name || 'Unknown');
   const symbol = escapeHtml(launch.symbol || '???');
-  const platformName = escapeHtml(launch.platformName || 'Launchpad');
-  const chainName = escapeHtml(launch.chainName || 'Ethereum Mainnet');
+  const pair = escapeHtml(launch.quoteSymbol || 'ETH');
+  const block = launch.blockNumber ? String(launch.blockNumber) : 'live';
   const isPangea = launch.platformKey === 'pangea';
+
+  const hashtagMap = {
+    pangea: 'PANGEA',
+    stockereum: 'STOCKEREUM',
+    programmable: 'PROGRAMMABLE',
+    programmable_robinhood: 'ROBINHOOD',
+    sender: 'SENDER',
+    etherstreet: 'ETHERSTREET',
+  };
+  const hashtag = hashtagMap[launch.platformKey] || 'ETHV4';
+
+  const platformSlugMap = {
+    pangea: 'pangea',
+    stockereum: 'stocker',
+    programmable: 'programmable',
+    programmable_robinhood: 'robinhood',
+    sender: 'sender',
+    etherstreet: 'etherstreet',
+  };
+  const platformSlug = platformSlugMap[launch.platformKey] || 'pangea';
 
   const makeMaestroUrl = (addr) => {
     const start = settings.maestroRef ? `${addr}-${settings.maestroRef}` : addr;
@@ -99,130 +119,106 @@ function buildTelegramAlert(launch, settings = {}, botUsername = '') {
   };
 
   const lines = [];
-  lines.push(`<b>${name} ($${symbol})</b>`);
-  lines.push(`━━━━━━━━━━━━━━━━━━━━━━`);
-  lines.push(`🏛 <b>Platform:</b> <a href="${launch.platformUrl}">${platformName}</a>`);
+  // Line 1: Header matching classic Phanes layout
+  lines.push(`<b>${name}</b> (<i>${symbol}/${pair}</i>) · blk: ${block} · #${hashtag}`);
 
+  // Line 2: Contract Address(es)
   if (isPangea) {
-    lines.push(``);
-    lines.push(`🔗 <b>Multi-Chain Contracts:</b>`);
-
-    // If CREATE2 deployed the exact same contract address on all EVM chains:
     if (launch.isSameEvmAddress && launch.ethAddress) {
-      const uCa = launch.ethAddress;
-      lines.push(`<b>ETH:</b>  <code>${uCa}</code>  <a href="${makeMaestroUrl(uCa)}">[Maestro]</a>`);
-      lines.push(`<b>BASE:</b> <code>${uCa}</code>  <a href="${makeMaestroUrl(uCa)}">[Maestro]</a>`);
-      lines.push(`<b>BSC:</b>  <code>${uCa}</code>  <a href="${makeMaestroUrl(uCa)}">[Maestro]</a>`);
-      if (launch.rhAddress) lines.push(`<b>RH:</b>   <code>${launch.rhAddress}</code>  <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
+      lines.push(`CA: <code>${launch.ethAddress}</code>`);
+      if (launch.solanaAddress) lines.push(`Sol: <code>${launch.solanaAddress}</code>`);
     } else {
-      // Distinct per-chain contract addresses: each chain strictly shows its own CA!
-      if (launch.ethAddress) lines.push(`<b>ETH:</b>  <code>${launch.ethAddress}</code>  <a href="${makeMaestroUrl(launch.ethAddress)}">[Maestro]</a>`);
-      if (launch.baseAddress) lines.push(`<b>BASE:</b> <code>${launch.baseAddress}</code>  <a href="${makeMaestroUrl(launch.baseAddress)}">[Maestro]</a>`);
-      if (launch.bscAddress) lines.push(`<b>BSC:</b>  <code>${launch.bscAddress}</code>  <a href="${makeMaestroUrl(launch.bscAddress)}">[Maestro]</a>`);
-      if (launch.rhAddress) lines.push(`<b>RH:</b>   <code>${launch.rhAddress}</code>  <a href="${makeMaestroUrl(launch.rhAddress)}">[Maestro]</a>`);
+      lines.push(`CA: <code>${launch.ethAddress || ca}</code>`);
+      if (launch.baseAddress) lines.push(`Base: <code>${launch.baseAddress}</code>`);
+      if (launch.bscAddress) lines.push(`BSC: <code>${launch.bscAddress}</code>`);
+      if (launch.rhAddress) lines.push(`RH: <code>${launch.rhAddress}</code>`);
+      if (launch.solanaAddress) lines.push(`Sol: <code>${launch.solanaAddress}</code>`);
     }
-    if (launch.solanaAddress) lines.push(`<b>SOL:</b>  <code>${launch.solanaAddress}</code>  <a href="${makeMaestroUrl(launch.solanaAddress)}">[Maestro]</a>`);
   } else {
-    // Single-chain launches: clean CA without [Maestro] link beside it (the Maestro button is below!)
-    lines.push(``);
-    lines.push(`📋 <b>Contract Address:</b>`);
-    lines.push(`<code>${ca}</code>`);
+    lines.push(`CA: <code>${ca}</code>`);
   }
 
-  // Lore / Story / Description
-  const loreText = (launch.lore || launch.description || '').trim();
-  if (
-    loreText &&
-    !loreText.startsWith('Launched on') &&
-    !loreText.startsWith('Create a fixed-supply')
-  ) {
-    const cleanLore = escapeHtml(loreText).slice(0, 240);
-    lines.push(``);
-    lines.push(`📖 <b>Lore:</b>`);
-    lines.push(`<i>"${cleanLore}${loreText.length > 240 ? '...' : ''}"</i>`);
+  // Line 3: Deployer
+  const deployer = launch.creator || launch.deployer || null;
+  if (deployer) {
+    lines.push(`Deployer: <a href="https://etherscan.io/address/${deployer}">${deployer}</a>`);
+  } else {
+    lines.push(`Deployer: none`);
   }
 
-  lines.push(``);
+  // Line 4: Dev
+  lines.push(`Dev: none`);
 
-  // Clean, complete Metrics Line
-  const mcVal = Number(launch.marketCapUsd);
-  const mcStr = mcVal > 0 ? formatUsd(mcVal) : 'Fresh Launch';
-  const metrics = [`MC: <b>${mcStr}</b>`];
-
-  const volVal = Number(launch.volumeUsd);
-  const volStr = volVal > 0 ? formatUsd(volVal) : '$0.00';
-  metrics.push(`Vol: <b>${volStr}</b>`);
-
-  const buysCount = launch.buys ?? 0;
-  const sellsCount = launch.sells ?? 0;
-  const totalTrades = launch.trades || buysCount + sellsCount || 0;
-  metrics.push(`Txns: <b>${totalTrades}</b>`);
-
-  if (!isPangea && launch.chainName) {
-    metrics.push(`Chain: <b>${escapeHtml(chainName.replace(/\s*\(.*\)/, ''))}</b>`);
+  // Line 5: Rewards / Fees
+  let rewards = '1% trading fee';
+  if (isPangea) {
+    rewards = '1.6% creator fee (2% trading fee)';
+  } else if (launch.platformKey === 'stockereum') {
+    rewards = launch.feePct ? `${launch.feePct} for creator` : '67% for creator';
   }
-  lines.push(`📊 <b>Stats:</b>`);
-  lines.push(metrics.join('  •  '));
+  lines.push(`Rewards: ${rewards}`);
 
-  // Distance between Stats and Links
-  lines.push(``);
-
-  // Clean Links Bar (DexScreener removed since dedicated button exists!)
-  const links = [];
-  if (launch.socials?.website) {
-    links.push(`<a href="${escapeHtml(launch.socials.website)}">Website</a>`);
-  } else if (launch.platformUrl) {
-    links.push(`<a href="${escapeHtml(launch.platformUrl)}">Website</a>`);
-  }
-
+  // Social section (if available)
+  const socialItems = [];
   if (launch.socials?.twitter) {
-    const tw = launch.socials.twitter.startsWith('http')
-      ? launch.socials.twitter
-      : `https://x.com/${launch.socials.twitter.replace(/^@/, '')}`;
-    links.push(`<a href="${escapeHtml(tw)}">𝕏 Twitter</a>`);
-  } else {
-    links.push(`<a href="https://x.com/search?q=${encodeURIComponent(ca)}">𝕏 Twitter</a>`);
+    const tw = launch.socials.twitter.replace(/^https?:\/\/x\.com\//, '').replace(/^https?:\/\/twitter\.com\//, '');
+    const twUrl = launch.socials.twitter.startsWith('http') ? launch.socials.twitter : `https://x.com/${tw.replace(/^@/, '')}`;
+    socialItems.push(`X: <a href="${twUrl}">${tw.startsWith('@') ? tw : (tw.startsWith('x.com') ? tw : `@${tw}`)}</a>`);
   }
-
   if (launch.socials?.telegram) {
-    const tg = launch.socials.telegram.startsWith('http')
-      ? launch.socials.telegram
-      : `https://t.me/${launch.socials.telegram.replace(/^@/, '')}`;
-    links.push(`<a href="${escapeHtml(tg)}">Telegram</a>`);
+    const tg = launch.socials.telegram.replace(/^https?:\/\/t\.me\//, '');
+    const tgUrl = launch.socials.telegram.startsWith('http') ? launch.socials.telegram : `https://t.me/${tg.replace(/^@/, '')}`;
+    socialItems.push(`TG: <a href="${tgUrl}">${tg.startsWith('@') ? tg : `@${tg}`}</a>`);
+  }
+  if (launch.socials?.website) {
+    const webUrl = launch.socials.website.startsWith('http')
+      ? launch.socials.website
+      : `https://${launch.socials.website}`;
+    const webClean = launch.socials.website.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    socialItems.push(`Web: <a href="${webUrl}">${webClean}</a>`);
   }
 
-  lines.push(`🔗 <b>Links:</b> ${links.join('  •  ')}`);
+  if (socialItems.length > 0) {
+    lines.push(``);
+    lines.push(`Social:`);
+    socialItems.forEach((item, idx) => {
+      const prefix = idx === socialItems.length - 1 ? '└' : '├';
+      lines.push(`${prefix} ${item}`);
+    });
+  }
 
-  const caption = lines.join('\n');
+  lines.push(``);
 
-  // Trading bot deep links
+  // Footer Row 1: Charts & Search
+  const dsUrl = launch.dexScreenerUrl || `https://dexscreener.com/ethereum/${ca}`;
+  const defUrl = `https://dexview.com/eth/${ca}`;
+  const searchXUrl = `https://x.com/search?q=${encodeURIComponent(ca)}`;
+  lines.push(
+    `📊: <a href="${dsUrl}">DS</a> • <a href="${defUrl}">DEF</a> • <a href="${launch.platformUrl}">${platformSlug}</a> • <a href="${searchXUrl}">Search X</a>`
+  );
+
+  // Footer Row 2: Trading Bot Deep Links
+  const bananaStart = settings.bananaRef ? `${ca}-${settings.bananaRef}` : ca;
+  const bananaUrl = `https://t.me/BananaGunSniper_bot?start=${bananaStart}`;
   const maestroUrl = makeMaestroUrl(ca);
   const sigmaStart = settings.sigmaRef ? `x-${settings.sigmaRef}-${ca}` : `x-${ca}`;
   const sigmaUrl = `https://t.me/Sigma_buyBot?start=${sigmaStart}`;
+  const bloomUrl = `https://t.me/BloomSolana_bot?start=${ca}`;
+  const fomoUrl = `https://t.me/fomobuybot?start=${ca}`;
 
-  const replyMarkup = {
-    inline_keyboard: [
-      [
-        { text: '⚡ Maestro', url: maestroUrl },
-        { text: '∑ Sigma', url: sigmaUrl },
-      ],
-      [
-        { text: '📈 DexScreener', url: launch.dexScreenerUrl },
-        {
-          text: isPangea ? '🏛 Pangea App' : '🏛 App',
-          url: launch.platformUrl,
-        },
-      ],
-    ],
-  };
+  lines.push(
+    `🤖: <a href="${bananaUrl}">BSDW</a> • <a href="${maestroUrl}">GM</a> • <a href="${sigmaUrl}">SIG</a> • <a href="${bloomUrl}">BSD</a> • <a href="${fomoUrl}">FOMO</a>`
+  );
+
+  const caption = lines.join('\n');
 
   return {
     caption,
-    replyMarkup,
+    replyMarkup: undefined,
     tradingLinks: {
       maestroUrl,
       sigmaUrl,
-      dexScreenerUrl: launch.dexScreenerUrl,
+      dexScreenerUrl: dsUrl,
     },
   };
 }

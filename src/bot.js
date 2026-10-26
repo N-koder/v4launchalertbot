@@ -802,7 +802,7 @@ class AlertBot {
               chat_id: m.chatId,
               message_id: m.messageId,
               parse_mode: 'HTML',
-              disable_web_page_preview: false,
+              disable_web_page_preview: true,
               reply_markup: replyMarkup,
             });
           }
